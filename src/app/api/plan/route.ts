@@ -4,17 +4,20 @@ import { NextRequest, NextResponse } from "next/server";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
-  const { origin, days, budget, vibes } = await req.json();
+  const { origin, days, budget, budgetRange, budgetStyle, vibes } = await req.json();
 
   if (!origin || !days || !budget) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
-  const vibeList = Array.isArray(vibes) && vibes.length ? vibes.join(", ") : "General sightseeing";
+  const vibeList   = Array.isArray(vibes) && vibes.length ? vibes.join(", ") : "General sightseeing";
+  const budgetLine = budgetRange && budgetStyle
+    ? `${budget} (${budgetRange} per person — ${budgetStyle})`
+    : budget;
 
   const prompt = `You are a Meghalaya travel expert helping domestic Indian travellers.
 
-Generate a realistic Meghalaya trip plan for a traveller from ${origin}, travelling for ${days} days, ${budget} budget, travel vibes: ${vibeList}.
+Generate a realistic Meghalaya trip plan for a traveller from ${origin}, travelling for ${days} days, budget: ${budgetLine}, travel vibes: ${vibeList}.
 
 Return ONLY valid JSON. No markdown. No text outside the JSON.
 
@@ -86,7 +89,7 @@ realityCheck: 4–5 strings. Each is one practical bullet.
 - Start with "✓" for tips or "⚠" for warnings.
 - Cover: entry route, local transport, weather caveat, feasibility, one insider tip.
 - Max 10 words per bullet.
-- No generic advice. Must be specific to this ${days}-day, ${budget} trip from ${origin}.
+- No generic advice. Must be specific to this ${days}-day, ${budgetLine} trip from ${origin}.
 
 Banned words: breathtaking, vibrant, nestled, gem, immerse, stunning, lush, picturesque, charming, paradise, amazing, wonderful, beautiful.
 All trips must route through Guwahati.`;
