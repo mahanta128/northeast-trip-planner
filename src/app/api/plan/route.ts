@@ -14,52 +14,82 @@ export async function POST(req: NextRequest) {
 
   const prompt = `You are a Meghalaya travel expert helping domestic Indian travellers.
 
-Generate a realistic Meghalaya trip plan for a traveller from ${origin}, travelling for ${days} days, with a ${budget} budget and travel vibes: ${vibeList}.
+Generate a realistic Meghalaya trip plan for a traveller from ${origin}, travelling for ${days} days, ${budget} budget, travel vibes: ${vibeList}.
 
 Return ONLY valid JSON. No markdown. No text outside the JSON.
 
 {
   "tripTitle": "",
   "summary": "",
-  "transport": ["", ""],
-  "stay": "",
-  "estimatedBudget": {
-    "range": "",
-    "note": ""
+  "tripFit": {
+    "score": "",
+    "summary": "",
+    "reasons": ["", "", ""]
+  },
+  "transport": [
+    { "mode": "", "leg": "", "duration": "", "cost": "" }
+  ],
+  "stay": {
+    "base": "",
+    "priceRange": "",
+    "bestFor": ["", ""]
+  },
+  "budget": {
+    "transport": "",
+    "stay": "",
+    "food": "",
+    "localTravel": ""
   },
   "itinerary": [
     {
       "day": 1,
-      "title": "",
+      "location": "",
       "highlights": ["", "", ""]
     }
   ],
-  "realityCheck": {
-    "route": "",
-    "feasibility": "",
-    "weather": "",
-    "localExpectations": ""
-  }
+  "realityCheck": ["", "", "", ""]
 }
 
-Strict writing rules:
-- tripTitle: max 6 words. Specific to the trip.
-- summary: exactly 2 sentences. State the route and trip character. No adjectives.
-- transport: array of 2–3 steps. Each step = one leg of the journey. Format each as: "Mode — route (duration)". Example: ["Flight — ${origin} to Guwahati (vary by city)", "Cab — Guwahati to Shillong (3–4 hrs)"].
-- stay: one sentence. Name area or property type only. Match to ${budget} tier. No adjectives.
-- estimatedBudget.range: INR range per person. Example: "₹18,000–₹25,000".
-- estimatedBudget.note: one short phrase. Example: "per person, excluding flights".
-- itinerary: exactly ${days} day objects.
-- highlights: exactly 3 strings per day. Each = one activity or place. Max 7 words. No filler.
-- Banned words: breathtaking, vibrant, nestled, gem, immerse, stunning, lush, picturesque, charming, paradise.
-- All trips must route through Guwahati.
-- Match quality of stays and activities to ${budget} tier.
-- Tailor highlights to vibes: ${vibeList}.
-- realityCheck: 4 fields, 1 sentence each. No adjectives. Practical facts only.
-  - route: How to actually get there. Flag any connection risks or delays.
-  - feasibility: Is this trip realistic for ${days} days? Flag if too rushed or too relaxed.
-  - weather: Key weather facts for Meghalaya relevant to the trip timing. Include monsoon warning if applicable.
-  - localExpectations: One practical expectation about local travel, connectivity, or infrastructure.`;
+Strict field rules:
+
+tripTitle: max 6 words. Specific and direct.
+
+summary: exactly 2 sentences. Route + trip character. No adjectives.
+
+tripFit:
+- score: format "X/10" — be honest, not 10/10 unless perfect fit.
+- summary: 2–3 words. Example: "Great Match", "Slightly Rushed", "Good Fit".
+- reasons: 3 strings. Start each with "✓" for positives or "⚠" for caveats. Max 8 words each.
+
+transport: array of journey legs from ${origin} to Meghalaya.
+- mode: single emoji (✈ 🚂 🚖 🚌 etc.)
+- leg: "City → City" format only.
+- duration: travel time or empty string if not applicable.
+- cost: INR range. Example: "₹4,000–7,000".
+
+stay:
+- base: city or area name only.
+- priceRange: INR per night. Example: "₹1,500–3,500/night".
+- bestFor: 2–3 vibe tags matching the traveller's vibes: ${vibeList}.
+
+budget: per-person INR ranges for each category. Format "₹X–Y".
+- transport: flights + intercity only.
+- stay: total accommodation cost for trip.
+- food: total food cost for trip.
+- localTravel: local cabs, autos, entry fees.
+
+itinerary: exactly ${days} day objects.
+- location: primary place for the day. City or landmark name only.
+- highlights: exactly 3 strings. Each = one activity. Max 7 words. Start each with an action verb.
+
+realityCheck: 4–5 strings. Each is one practical bullet.
+- Start with "✓" for tips or "⚠" for warnings.
+- Cover: entry route, local transport, weather caveat, feasibility, one insider tip.
+- Max 10 words per bullet.
+- No generic advice. Must be specific to this ${days}-day, ${budget} trip from ${origin}.
+
+Banned words: breathtaking, vibrant, nestled, gem, immerse, stunning, lush, picturesque, charming, paradise, amazing, wonderful, beautiful.
+All trips must route through Guwahati.`;
 
   try {
     const message = await client.messages.create({
