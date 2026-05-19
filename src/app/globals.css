@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
+/* ─── Design Tokens ───────────────────────────────────────── */
+
 :root {
-  --background: #F7F4F0;
-  --foreground: #171717;
+  --blue-primary:    #2551CC;   /* softer cobalt, less neon */
+  --blue-deep:       #163099;   /* deeper navy */
+  --bg-fog:          #EEF3FB;
+  --mist-accent:     #DDE8F7;
+  --soft-white:      #F9FBFF;
+  --text-dark:       #1C2333;
+  --text-muted:      #6B7280;
+  --text-faint:      #A8B5C8;
+  --background:      #EEF3FB;
+  --foreground:      #1C2333;
 }
 
 @theme inline {
@@ -12,15 +22,64 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── DateRangePicker range band ───────────────────────────── */
+
+.rdp-range-start {
+  background: linear-gradient(to right, transparent 50%, #dde8f7 50%);
+}
+.rdp-range-end {
+  background: linear-gradient(to left, transparent 50%, #dde8f7 50%);
+}
+.rdp-range-mid {
+  background: #dde8f7;
+}
+.rdp-range-start.rdp-range-end {
+  background: transparent;
+}
+.rdp-range-start .rdp-btn,
+.rdp-range-end .rdp-btn {
+  background: linear-gradient(135deg, #2551CC, #163099);
+  color: white;
+  box-shadow: 0 2px 8px rgba(37, 81, 204, 0.35);
+}
+.rdp-range-start .rdp-btn:hover,
+.rdp-range-end .rdp-btn:hover {
+  background: linear-gradient(135deg, #1e45b8, #112680);
+}
+.rdp-range-mid .rdp-btn {
+  color: #2551CC;
+  border-radius: 0;
+}
+.rdp-range-mid .rdp-btn:hover {
+  background-color: #c8d9f5;
+}
+.rdp-today:not(.rdp-range-start):not(.rdp-range-end) .rdp-btn {
+  color: #2551CC;
+  font-weight: 800;
+}
+.rdp-off .rdp-btn {
+  opacity: 0.2;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.rdp-out {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ─── Scrollbar hide utility ──────────────────────────────── */
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

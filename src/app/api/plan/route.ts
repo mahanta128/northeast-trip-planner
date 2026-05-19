@@ -3,21 +3,61 @@ import { NextRequest, NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+function getSeasonInfo(dateStr: string): { season: string; note: string } {
+  const month = new Date(dateStr).getMonth() + 1;
+  if (month >= 6 && month <= 9)
+    return { season: "Monsoon", note: "Heavy rainfall, waterfalls at peak flow, some roads closed, leeches active in forests — pack rain gear and plan indoor fallback days." };
+  if (month >= 10 && month <= 11)
+    return { season: "Post-monsoon", note: "Clear skies, lush greenery, ideal for trekking and road trips — best overall season." };
+  if (month === 12 || month <= 2)
+    return { season: "Winter", note: "Cold and foggy especially at altitude, clear sunny days possible — carry warm layers." };
+  return { season: "Spring/Pre-monsoon", note: "Pleasant temperatures, cherry blossoms in Shillong, drier roads before June — ideal weather window." };
+}
+
 export async function POST(req: NextRequest) {
-  const { origin, days, budget, budgetRange, budgetStyle, vibes } = await req.json();
+  const {
+    origin, days, budget, budgetRange, budgetStyle, vibes, travelers = 2,
+    startDate, endDate,
+    seasonName, seasonNote,
+    permitRequired, permitName,
+    festivals = [],
+  } = await req.json();
 
   if (!origin || !days || !budget) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
-  const vibeList   = Array.isArray(vibes) && vibes.length ? vibes.join(", ") : "General sightseeing";
-  const budgetLine = budgetRange && budgetStyle
+  const vibeList     = Array.isArray(vibes) && vibes.length ? vibes.join(", ") : "General sightseeing";
+  const budgetLine   = budgetRange && budgetStyle
     ? `${budget} (${budgetRange} per person — ${budgetStyle})`
     : budget;
+  const travelerLine = travelers === 1
+    ? "1 traveler (solo)"
+    : travelers === 2
+    ? "2 travelers (couple)"
+    : travelers <= 5
+    ? `${travelers} travelers (small group)`
+    : `${travelers} travelers (large group)`;
 
-  const prompt = `You are a Meghalaya travel expert helping domestic Indian travellers.
+  const { season: legacySeason, note: legacySeasonNote } = startDate ? getSeasonInfo(startDate) : { season: "", note: "" };
+  const activeSeason = seasonName || legacySeason;
+  const activeSeasonNote = seasonNote || legacySeasonNote;
 
-Generate a realistic Meghalaya trip plan for a traveller from ${origin}, travelling for ${days} days, budget: ${budgetLine}, travel vibes: ${vibeList}.
+  const dateContext = startDate
+    ? `\nTravel window: ${startDate} to ${endDate || startDate} (${days} days). Season: ${activeSeason}${activeSeasonNote ? ` — ${activeSeasonNote}` : ""}`
+    : "";
+
+  const permitLine = permitRequired && permitName
+    ? `\nPermit requirement: ${permitName} is mandatory — factor this into itinerary day 1 logistics.`
+    : "";
+
+  const festivalLine = Array.isArray(festivals) && festivals.length
+    ? `\nFestival overlap: ${(festivals as string[]).join(", ")} occurs during this travel window — consider recommending it if timing aligns.`
+    : "";
+
+  const prompt = `You are a Northeast India travel expert helping domestic Indian travellers.
+
+Generate a realistic trip plan for ${travelerLine} from ${origin} to their chosen destination, travelling for ${days} days, budget: ${budgetLine} (per person), travel vibes: ${vibeList}.${dateContext}${permitLine}${festivalLine}
 
 Return ONLY valid JSON. No markdown. No text outside the JSON.
 
@@ -90,6 +130,12 @@ realityCheck: 4–5 strings. Each is one practical bullet.
 - Cover: entry route, local transport, weather caveat, feasibility, one insider tip.
 - Max 10 words per bullet.
 - No generic advice. Must be specific to this ${days}-day, ${budgetLine} trip from ${origin}.
+
+Traveler-specific rules for ${travelerLine}:
+- Solo (1): budget stays, shared transport, solo-friendly guesthouses, street food.
+- Couple (2): comfortable stays, private or shared cabs, café meals.
+- Small group (3–5): shared SUVs, twin/triple rooms, split costs on activities.
+- Large group (6+): private vehicle hire mandatory, villa or multi-room stays where practical, group discounts on entry fees.
 
 Banned words: breathtaking, vibrant, nestled, gem, immerse, stunning, lush, picturesque, charming, paradise, amazing, wonderful, beautiful.
 All trips must route through Guwahati.`;
