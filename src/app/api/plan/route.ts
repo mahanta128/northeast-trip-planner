@@ -11,7 +11,7 @@ function getSeasonInfo(dateStr: string): { season: string; note: string } {
     return { season: "Post-monsoon", note: "Clear skies, lush greenery, ideal for trekking and road trips — best overall season." };
   if (month === 12 || month <= 2)
     return { season: "Winter", note: "Cold and foggy especially at altitude, clear sunny days possible — carry warm layers." };
-  return { season: "Spring/Pre-monsoon", note: "Pleasant temperatures, cherry blossoms in Shillong, drier roads before June — ideal weather window." };
+  return { season: "Spring/Pre-monsoon", note: "Pleasant temperatures, clear skies, drier roads before June — ideal weather window for trekking and river visits." };
 }
 
 export async function POST(req: NextRequest) {

@@ -151,11 +151,11 @@ const SEASONS: Record<string, SeasonMap> = {
     },
     1: {
       name: "Spring", emoji: "🌸", months: "Mar–May",
-      weather: "18–24°C; cherry blossoms bloom in Shillong in April",
+      weather: "18–24°C; warm sunny days with clear visibility across Shillong and the plateau",
       pacing: "Ideal pace; long daylight, good roads",
       roads: "Best road conditions of the year; pre-monsoon showers possible in May",
-      highlights: ["Cherry Blossom Festival (April, Shillong)", "Dawki river vivid turquoise", "Nohkalikai hike comfortable in dry heat"],
-      caveats: ["May humidity climbs fast; carry light rain gear", "Book Shillong stays early for April festival period"],
+      highlights: ["Dawki river vivid turquoise — best clarity before monsoon", "Nohkalikai hike comfortable in dry heat", "Mawlynnong and living root bridges without the monsoon crowds"],
+      caveats: ["May humidity climbs fast; carry light rain gear", "Book accommodation early during long weekends"],
     },
     2: {
       name: "Monsoon", emoji: "🌧", months: "Jun–Sep",
@@ -170,7 +170,7 @@ const SEASONS: Record<string, SeasonMap> = {
       weather: "20–25°C; clear skies, minimal rain, rich green still visible",
       pacing: "Best overall season — ideal visibility and road conditions",
       roads: "Roads clear; rare residual landslide debris from September",
-      highlights: ["Best overall visibility across the state", "Wangala Festival (November, Garo Hills)", "Dawki river starts clearing to blue-green"],
+      highlights: ["Cherry Blossom Festival (November, Shillong) — Ward's Lake and Police Bazaar in full bloom", "Wangala Festival (November, Garo Hills)", "Dawki river clearing to vivid blue-green after monsoon"],
       caveats: ["November is peak season — book accommodation 2–3 weeks ahead", "Nights at altitude (Shillong, Cherrapunji) can be chilly"],
     },
   },

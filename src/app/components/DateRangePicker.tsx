@@ -49,7 +49,7 @@ export default function DateRangePicker({ value, onChange }: Props) {
 
   function handleSelect(range: DateRange | undefined) {
     onChange(range);
-    if (range?.from && range?.to) setOpen(false);
+    if (range?.from && range?.to && differenceInCalendarDays(range.to, range.from) > 0) setOpen(false);
   }
 
   return (

@@ -74,6 +74,60 @@ body {
   pointer-events: none;
 }
 
+/* ─── CTA ready pulse ────────────────────────────────────── */
+
+@keyframes cta-ready-pulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(37, 81, 204, 0.22); }
+  50%       { box-shadow: 0 8px 36px rgba(37, 81, 204, 0.55), 0 0 0 5px rgba(37, 81, 204, 0.13); }
+}
+
+.cta-ready {
+  animation: cta-ready-pulse 2.2s ease-in-out infinite;
+}
+
+/* ─── Print / Save as PDF ────────────────────────────────── */
+
+@media print {
+  @page {
+    margin: 1.5cm 2cm;
+    size: A4 portrait;
+  }
+
+  /* Exact colors — keeps the dark hero card looking premium */
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: white !important;
+  }
+
+  /* UI chrome: hide everything that isn't content */
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Force framer-motion accordion bodies open.
+     The !important overrides framer-motion's inline height/opacity/overflow. */
+  .accordion-body {
+    height: auto !important;
+    max-height: none !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Avoid page breaks inside cards */
+  .result-card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Remove interactive shadows */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}
+
 /* ─── Scrollbar hide utility ──────────────────────────────── */
 
 .scrollbar-none {
