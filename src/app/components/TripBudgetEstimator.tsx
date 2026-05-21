@@ -2,6 +2,7 @@
 
 import * as RadixSlider from "@radix-ui/react-slider";
 import { motion, AnimatePresence } from "framer-motion";
+import { InlineIcon } from "./ui/Icon";
 import {
   TRIP_TIERS,
   computeTripCost,
@@ -63,9 +64,9 @@ function BudgetCard({
 
   // Card backgrounds
   const cardCls = isPremium
-    ? "bg-gradient-to-br from-[#1C306E] to-[#0E1C4A] border-[#1C306E]"
+    ? "bg-gradient-to-br from-[#1B2E69] via-[#192C66] to-[#111C4A] border-[#253278]"
     : isBudget
-    ? "bg-[#EEF3FB] border-[#DDE8F7]"
+    ? "bg-[#F3F7FD] border-[#DDE8F7]"
     : "bg-white border-[#DDE8F7]";
 
   // Selection ring
@@ -84,8 +85,8 @@ function BudgetCard({
 
   // Tier label
   const tierLabelCls = isPremium
-    ? "text-white/55"
-    : "text-[#6B7280]/65";
+    ? "text-white/62"
+    : "text-[#6B7280]/72";
 
   // Total price
   const totalCls = isPremium
@@ -99,8 +100,8 @@ function BudgetCard({
 
   // Description
   const descCls = isPremium
-    ? "text-white/45"
-    : "text-[#6B7280]/55";
+    ? "text-white/54"
+    : "text-[#6B7280]/65";
 
   // Discount badge
   const badgeCls = isPremium
@@ -117,14 +118,18 @@ function BudgetCard({
     ? "bg-white text-[#2551CC]"
     : "bg-[#2551CC] text-white";
 
+  const hoverShadow = isPremium
+    ? "hover:shadow-[0_10px_32px_rgba(11,17,56,0.36)] active:scale-[0.98]"
+    : "hover:shadow-[0_4px_16px_rgba(37,81,204,0.10)] active:scale-[0.98]";
+
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
         "rounded-2xl border px-5 py-5 flex flex-col gap-4 text-left w-full",
-        "cursor-pointer transition-all duration-150",
-        "hover:shadow-md active:scale-[0.98]",
+        "cursor-pointer transition-all duration-200",
+        hoverShadow,
         cardCls,
         ringCls,
       ].join(" ")}
@@ -132,8 +137,8 @@ function BudgetCard({
       {/* Top row */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5 flex-wrap">
-          <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 ${iconBg}`}>
-            {tier.icon}
+          <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+            <InlineIcon name={tier.icon} size={15} strokeWidth={1.75} color={isPremium ? "white" : "#2551CC"} />
           </span>
           <p className={`text-[10px] font-bold uppercase tracking-wider leading-tight ${tierLabelCls}`}>
             {tier.label}
@@ -151,8 +156,8 @@ function BudgetCard({
             </span>
           )}
           {selected && (
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${checkCls}`}>
-              ✓
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${checkCls}`}>
+              <InlineIcon name="check2" size={11} strokeWidth={2.5} color={isPremium ? "#2551CC" : "white"} />
             </span>
           )}
         </div>
@@ -165,7 +170,7 @@ function BudgetCard({
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className={`text-[1.6rem] font-bold tabular-nums leading-none tracking-tight ${totalCls}`}
+          className={`text-[1.82rem] font-bold tabular-nums leading-none tracking-[-0.02em] ${totalCls}`}
         >
           {formatINR(total)}
         </motion.p>

@@ -95,7 +95,7 @@ Return ONLY valid JSON. No markdown. No text outside the JSON.
 
 Strict field rules:
 
-tripTitle: max 6 words. Specific and direct.
+tripTitle: max 6 words. Destination + trip character. No city name prefixes. No "&" connectors. Write the destination region, not a specific city. Example: "Meghalaya Plateau Escape" not "Shillong & Meghalaya Plateau Escape".
 
 summary: exactly 2 sentences. Route + trip character. No adjectives.
 

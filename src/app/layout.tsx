@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NortheastTrips — Plan Smarter",
-  description: "Realistic routes, stays and budgets for Meghalaya, Arunachal Pradesh and Sikkim.",
+  title: "Rhinotrek — Plan Northeast India",
+  description: "Reality-checked trips for Meghalaya, Arunachal Pradesh and Sikkim. Routes, weather, permits and budgets — planned properly.",
 };
 
 export default function RootLayout({

@@ -11,7 +11,7 @@ export interface ComputedBudget {
 
 export interface SeasonData {
   name: string;
-  emoji: string;
+  icon: string;
   months: string;
   weather: string;
   pacing: string;
@@ -142,7 +142,7 @@ type SeasonMap = Record<number, SeasonData>; // 0=Winter 1=Spring 2=Monsoon 3=Au
 const SEASONS: Record<string, SeasonMap> = {
   Meghalaya: {
     0: {
-      name: "Winter", emoji: "❄️", months: "Dec–Feb",
+      name: "Winter", icon: "winter", months: "Dec–Feb",
       weather: "10–15°C in Shillong; foggy mornings, clear afternoons",
       pacing: "Comfortable pace; shorter daylight hours",
       roads: "Roads clear; occasional morning fog on Cherrapunji route",
@@ -150,7 +150,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["Cold at night — carry warm layers", "December weekends busy around Christmas"],
     },
     1: {
-      name: "Spring", emoji: "🌸", months: "Mar–May",
+      name: "Spring", icon: "spring", months: "Mar–May",
       weather: "18–24°C; warm sunny days with clear visibility across Shillong and the plateau",
       pacing: "Ideal pace; long daylight, good roads",
       roads: "Best road conditions of the year; pre-monsoon showers possible in May",
@@ -158,7 +158,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["May humidity climbs fast; carry light rain gear", "Book accommodation early during long weekends"],
     },
     2: {
-      name: "Monsoon", emoji: "🌧", months: "Jun–Sep",
+      name: "Monsoon", icon: "monsoon", months: "Jun–Sep",
       weather: "Cherrapunji gets 100mm+ rain per day; expect continuous rainfall across the state",
       pacing: "Slow travel — budget 1–2 extra days for weather delays",
       roads: "Cherrapunji road prone to landslides; check conditions before starting; avoid night driving",
@@ -166,7 +166,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["Leech socks mandatory in forests", "Dawki river turns muddy — skip river camping", "Full waterproof gear required daily"],
     },
     3: {
-      name: "Post-monsoon", emoji: "🍃", months: "Oct–Nov",
+      name: "Post-monsoon", icon: "autumn", months: "Oct–Nov",
       weather: "20–25°C; clear skies, minimal rain, rich green still visible",
       pacing: "Best overall season — ideal visibility and road conditions",
       roads: "Roads clear; rare residual landslide debris from September",
@@ -176,7 +176,7 @@ const SEASONS: Record<string, SeasonMap> = {
   },
   "Arunachal Pradesh": {
     0: {
-      name: "Winter", emoji: "🏔", months: "Dec–Feb",
+      name: "Winter", icon: "winter", months: "Dec–Feb",
       weather: "–5 to 10°C at Tawang; heavy snow possible above 3,000m",
       pacing: "Slow travel; plan for possible day-long delays at high passes",
       roads: "Sela Pass (4,170m) may close due to snow; check BRO updates daily",
@@ -184,7 +184,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["Road closures common above Sela Pass", "Carry sub-zero gear for evenings", "ILP mandatory — apply 3–5 days before travel"],
     },
     1: {
-      name: "Spring", emoji: "🌺", months: "Mar–May",
+      name: "Spring", icon: "spring", months: "Mar–May",
       weather: "10–20°C; rhododendrons bloom; roads reopen after winter closures",
       pacing: "Good travel pace; long days ideal for road trips",
       roads: "Post-winter repairs underway; some patches rough but passable",
@@ -192,7 +192,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["May rains start — pack accordingly", "ILP required for all Indian nationals"],
     },
     2: {
-      name: "Monsoon", emoji: "🌧", months: "Jun–Sep",
+      name: "Monsoon", icon: "monsoon", months: "Jun–Sep",
       weather: "Heavy rain across state; flooding in lower valley regions",
       pacing: "Challenging travel — not recommended for first-timers",
       roads: "NH-13 and NH-15 frequently blocked by landslides; road trips can take 2× longer",
@@ -200,7 +200,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["Roads unpredictable; flight to Itanagar recommended", "Ziro Music Festival (September) draws large crowds", "ILP required"],
     },
     3: {
-      name: "Autumn", emoji: "🍂", months: "Oct–Nov",
+      name: "Autumn", icon: "autumn", months: "Oct–Nov",
       weather: "12–22°C; clear skies; excellent mountain visibility",
       pacing: "Best season overall — optimal visibility and stable roads",
       roads: "Good conditions post-monsoon; best window for road travel",
@@ -210,15 +210,15 @@ const SEASONS: Record<string, SeasonMap> = {
   },
   Sikkim: {
     0: {
-      name: "Winter", emoji: "❄️", months: "Dec–Feb",
+      name: "Winter", icon: "winter", months: "Dec–Feb",
       weather: "–5 to 10°C in North Sikkim; 5–15°C in Gangtok",
       pacing: "Moderate pace; shorter days; some routes restricted",
       roads: "North Sikkim roads may close after snowfall; Tsomgo lake partially frozen",
       highlights: ["Snow at Nathu La (4,310m)", "Quiet Gangtok in off-season", "Rumtek Monastery monastery atmosphere"],
-      caveats: ["North Sikkim requires Protected Area Permit with advance approval", "Heavy winter gear essential above 3,000m"],
+      caveats: ["North Sikkim restricted zones need a Restricted Area Permit — book via local operator", "Heavy winter gear essential above 3,000m"],
     },
     1: {
-      name: "Spring", emoji: "🌸", months: "Mar–May",
+      name: "Spring", icon: "spring", months: "Mar–May",
       weather: "10–20°C; peak rhododendron season March–April",
       pacing: "Best season — ideal for trekking and road trips",
       roads: "Good conditions; NH-10 clear; occasional pre-monsoon showers in May",
@@ -226,7 +226,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["Peak tourist season — book 3 weeks ahead for Pelling and Gangtok"],
     },
     2: {
-      name: "Monsoon", emoji: "🌧", months: "Jun–Sep",
+      name: "Monsoon", icon: "monsoon", months: "Jun–Sep",
       weather: "Heavy rain; leech-active trails; frequent landslides on mountain roads",
       pacing: "Slow travel; trekking not advised",
       roads: "NH-10 (Siliguri–Gangtok) prone to landslides; North Sikkim often blocked",
@@ -234,7 +234,7 @@ const SEASONS: Record<string, SeasonMap> = {
       caveats: ["Trekking inadvisable", "Road to North Sikkim frequently blocked", "Carry full rain gear"],
     },
     3: {
-      name: "Autumn", emoji: "🍂", months: "Oct–Nov",
+      name: "Autumn", icon: "autumn", months: "Oct–Nov",
       weather: "10–20°C; crystal-clear post-monsoon skies",
       pacing: "Second-best season; excellent mountain visibility",
       roads: "Good conditions; Kanchenjunga views sharp from Pelling and Goechala",
@@ -275,12 +275,12 @@ export const PERMIT_INFO: Record<string, PermitData> = {
     tip: "Apply 3–5 days before travel. Carry 2 printed copies. Show at every checkpost.",
   },
   Sikkim: {
-    required: true,
-    name: "Protected Area Permit (PAP)",
-    applyAt: "East Sikkim: free on arrival at Rangpo/Melli checkpost · North & West Sikkim: apply via District Collector or tourism office",
-    cost: "Free for East Sikkim · ₹200–500 for restricted zones",
-    validity: "15–30 days depending on zone",
-    tip: "East Sikkim (Gangtok, Tsomgo) is permit-free. For Lachung/Lachen (North), apply 2–3 weeks ahead.",
+    required: false,
+    name: "",
+    applyAt: "",
+    cost: "",
+    validity: "",
+    tip: "No permit required for most Sikkim destinations. North Sikkim restricted zones (Lachung, Lachen, Gurudongmar) require a Restricted Area Permit — apply via a registered local tour operator 2–3 weeks ahead.",
   },
 };
 

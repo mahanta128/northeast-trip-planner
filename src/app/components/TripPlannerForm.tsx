@@ -1,23 +1,35 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, differenceInCalendarDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import DateRangePicker from "./DateRangePicker";
 import TripBudgetEstimator from "./TripBudgetEstimator";
+import { PremiumIcon, InlineIcon } from "./ui/Icon";
 import {
   computeBudget, getSeasonData, PERMIT_INFO, getFestivals,
   type BudgetTier, type ComputedBudget, type SeasonData, type PermitData, type FestivalData,
 } from "../lib/tripData";
 
+const JourneyMap = dynamic(() => import("./JourneyMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-[#F4F7FD] animate-pulse rounded-b-3xl">
+      <span className="text-[12px] text-[#A8B5C8] font-medium">Loading map…</span>
+    </div>
+  ),
+});
+
 /* ─── Constants ───────────────────────────────────────────── */
 
 const DESTINATIONS = [
-  { name: "Meghalaya",          short: "Meghalaya",   emoji: "🌿", active: true  },
-  { name: "Arunachal Pradesh",  short: "Arunachal",   emoji: "🏔", active: false },
-  { name: "Sikkim",             short: "Sikkim",       emoji: "❄️", active: false },
+  { name: "Meghalaya",          short: "Meghalaya",  icon: "tree-pine", active: true  },
+  { name: "Arunachal Pradesh",  short: "Arunachal",  icon: "mountain",  active: false },
+  { name: "Sikkim",             short: "Sikkim",     icon: "snowflake", active: false },
 ];
 
 const VIBES   = ["Relaxed", "Adventure", "Photography", "Cafes", "Nature"];
@@ -83,6 +95,7 @@ const INITIAL: FormState = {
 interface TripContext {
   days: number;
   travelers: number;
+  origin: string;
   destination: string;
   startDateFormatted: string;
   endDateFormatted: string;
@@ -107,15 +120,20 @@ function Divider() {
 /* ─── Pill ────────────────────────────────────────────────── */
 
 function Pill({
-  selected, onClick, disabled, children,
+  selected, onClick, disabled, children, accentColor,
 }: {
   selected: boolean; onClick: () => void; disabled?: boolean; children: React.ReactNode;
+  accentColor?: string;
 }) {
+  const selectedOverride = selected && !disabled && accentColor
+    ? { background: accentColor, borderColor: accentColor }
+    : {};
   return (
     <button
       type="button"
       onClick={disabled ? undefined : onClick}
-      className={`relative px-4 py-2 rounded-full text-sm font-medium border transition-all duration-150 ${
+      style={selectedOverride}
+      className={`relative px-4 py-2 rounded-full text-sm font-medium border transition-all duration-200 ${
         disabled
           ? "border-[#DDE8F7] bg-[#F9FBFF] text-[#A8B5C8] cursor-not-allowed"
           : selected
@@ -130,7 +148,12 @@ function Pill({
 
 /* ─── Season Snippet (in-form) ───────────────────────────── */
 
-function SeasonSnippet({ destination, startDate }: { destination: string; startDate: Date | undefined }) {
+function SeasonSnippet({ destination, startDate, moodBorder, moodBg }: {
+  destination: string;
+  startDate: Date | undefined;
+  moodBorder?: string;
+  moodBg?: string;
+}) {
   if (!startDate) return null;
   const month = startDate.getMonth() + 1;
   const season = getSeasonData(destination, month);
@@ -146,11 +169,12 @@ function SeasonSnippet({ destination, startDate }: { destination: string; startD
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -4 }}
         transition={{ duration: 0.2 }}
-        className="rounded-2xl border border-[#DDE8F7] bg-[#EEF3FB]/60 px-4 py-3.5 flex flex-col gap-2.5"
+        className="rounded-2xl border px-4 py-3.5 flex flex-col gap-2.5 transition-colors duration-500"
+        style={{ borderColor: moodBorder ?? "#DDE8F7", background: moodBg ?? "rgba(238,243,251,0.6)" }}
       >
         {season && (
           <div className="flex items-start gap-2.5">
-            <span className="text-base leading-none mt-0.5">{season.emoji}</span>
+            <PremiumIcon name={season.icon} size={14} containerSize={28} radius={9} strokeWidth={1.75} shadow="none" className="mt-0.5" />
             <div className="flex flex-col gap-0.5">
               <p className="text-xs font-bold text-[#1C2333]">
                 {season.name} <span className="font-normal text-[#A8B5C8]">({season.months})</span>
@@ -164,7 +188,7 @@ function SeasonSnippet({ destination, startDate }: { destination: string; startD
         )}
         {permit?.required && (
           <div className="flex items-start gap-2 pt-2 border-t border-[#DDE8F7]/60">
-            <span className="text-[11px] font-bold text-[#A2272B] shrink-0 mt-px">⚠</span>
+            <InlineIcon name="warning" size={13} strokeWidth={1.75} className="shrink-0 mt-0.5" />
             <p className="text-xs text-[#7B4A2A] leading-snug">
               <span className="font-semibold">{permit.name}</span> required — apply before travel
             </p>
@@ -172,7 +196,7 @@ function SeasonSnippet({ destination, startDate }: { destination: string; startD
         )}
         {festivals.length > 0 && (
           <div className="flex items-start gap-2 pt-2 border-t border-[#DDE8F7]/60">
-            <span className="text-xs shrink-0 mt-px">🎪</span>
+            <InlineIcon name="festival" size={13} strokeWidth={1.75} className="shrink-0 mt-0.5" />
             <p className="text-xs text-[#6B7280] leading-snug">
               <span className="font-semibold">{festivals[0].name}</span> falls during your travel window ·{" "}
               <span className="text-[#A8B5C8]">{festivals[0].location}</span>
@@ -206,10 +230,12 @@ function LoadingState() {
       <div className="relative w-14 h-14">
         <div className="absolute inset-0 rounded-full border-4 border-[#DDE8F7]" />
         <div className="absolute inset-0 rounded-full border-4 border-t-[#2551CC] animate-spin" />
-        <span className="absolute inset-0 flex items-center justify-center text-xl">🧭</span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          <InlineIcon name="compass" size={22} strokeWidth={1.5} color="#2551CC" />
+        </span>
       </div>
       <div className="text-center">
-        <p className="text-base font-semibold text-[#1C2333]">Crafting your Northeast journey</p>
+        <p className="text-base font-semibold text-[#1C2333]">Crafting your Rhinotrek journey</p>
         <p className="text-sm text-[#A8B5C8] mt-1">This takes a few moments</p>
       </div>
       <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -266,20 +292,20 @@ function classify(item: string): InsightStyle {
   if (isWarn) {
     if (/rain|monsoon|weather|flood|storm|cloud|fog|mist|temperature|climate/.test(t))
       return {
-        icon: "🌧", label: "Weather Advisory",
+        icon: "weather", label: "Weather Advisory",
         bg: "bg-[#EFF8FF]", border: "border-[#BAE0FD]",
         iconBg: "bg-[#DBEAFE]", iconColor: "text-[#1D4ED8]",
         labelColor: "text-[#1D4ED8]", textColor: "text-[#1E3A5F]", text,
       };
     if (/road|landslide|traffic|route|drive|highway|motorable|jeep|vehicle|km|hour/.test(t))
       return {
-        icon: "🛣", label: "Road Advisory",
+        icon: "road", label: "Road Advisory",
         bg: "bg-[#FFF7ED]", border: "border-[#FDBA74]",
         iconBg: "bg-[#FFEDD5]", iconColor: "text-[#C2410C]",
         labelColor: "text-[#C2410C]", textColor: "text-[#7C2D12]", text,
       };
     return {
-      icon: "⚠", label: "Warning",
+      icon: "warning", label: "Warning",
       bg: "bg-[#FFFBEB]", border: "border-[#FDE68A]",
       iconBg: "bg-[#FEF3C7]", iconColor: "text-[#B45309]",
       labelColor: "text-[#B45309]", textColor: "text-[#78350F]", text,
@@ -288,14 +314,14 @@ function classify(item: string): InsightStyle {
 
   if (/^(book|bring|carry|check|consider|avoid|plan|note|remember|ensure|verify|download|ask|arrange|use|opt|hire|get|buy|pay)/i.test(text))
     return {
-      icon: "💡", label: "Travel Tip",
+      icon: "tip", label: "Travel Tip",
       bg: "bg-[#F9FBFF]", border: "border-[#DDE8F7]",
       iconBg: "bg-[#EEF3FB]", iconColor: "text-[#2551CC]",
       labelColor: "text-[#2551CC]", textColor: "text-[#1C2333]", text,
     };
 
   return {
-    icon: "✓", label: "Confirmed",
+    icon: "check", label: "Confirmed",
     bg: "bg-[#F0FDF4]", border: "border-[#BBF7D0]",
     iconBg: "bg-[#DCFCE7]", iconColor: "text-[#16A34A]",
     labelColor: "text-[#16A34A]", textColor: "text-[#14532D]", text,
@@ -317,12 +343,12 @@ function parseMidpoint(val: string): number {
 
 function getTransportContext(leg: { mode: string; leg: string }): string | null {
   const route = leg.leg.toLowerCase();
-  const mode  = leg.mode;
-  if (/✈|flight|air/i.test(mode) || /airport|airline/.test(route))
+  const mode  = leg.mode.toLowerCase();
+  if (/flight|air|plane/.test(mode) || /airport|airline/.test(route))
     return "Book 3–4 weeks ahead for best fares";
-  if (/🚂|🚃|train|rail/i.test(mode) || /railway|station/.test(route))
+  if (/train|rail/.test(mode) || /railway|station/.test(route))
     return "Reserve berths early — trains fill quickly";
-  if (/⛴|🛥|ferry|boat/i.test(mode) || /river|brahmaputra|ferry|cruise/.test(route))
+  if (/ferry|boat|ship/.test(mode) || /river|brahmaputra|ferry|cruise/.test(route))
     return "Check seasonal ferry schedules in advance";
   if (/mountain|hill|cherrapunji|dawki|mawlynnong|tawang|ziro|mechuka|dzukou|arunachal|sikkim|manipur/.test(route))
     return "Mountain roads — plan arrival before sunset";
@@ -331,6 +357,27 @@ function getTransportContext(leg: { mode: string; leg: string }): string | null 
   if (/scenic|valley|tea garden|plantation/.test(route))
     return "Scenic stretch — allow time for stops";
   return null;
+}
+
+function isTaxiMode(mode: string): boolean {
+  // also catches emoji-prefixed AI strings like "🚕 Shared Cab"
+  return /🚕|🚗|🚙|🚘|🚖/.test(mode) ||
+    /taxi|cab|jeep|suv|innova|bolero|sedan|car|shared.*cab|private.*cab/i.test(mode);
+}
+
+function isFlightMode(leg: { mode: string; leg: string }): boolean {
+  const mode  = leg.mode;
+  const route = leg.leg.toLowerCase();
+  return /✈|flight|air|plane/i.test(mode) || /airport|airline/.test(route);
+}
+
+function getTransportIconName(leg: { mode: string; leg: string }): string {
+  const mode  = leg.mode.toLowerCase();
+  const route = leg.leg.toLowerCase();
+  if (/train|rail/.test(mode) || /railway|station/.test(route)) return "train";
+  if (/ferry|boat|ship/.test(mode) || /river|ferry|cruise/.test(route)) return "ship";
+  if (/bus/.test(mode)) return "bus";
+  return "transport";
 }
 
 /* ─── Itinerary helpers ───────────────────────────────────── */
@@ -448,6 +495,56 @@ const DEST_HERO_THEMES: Record<string, DestHeroTheme> = {
   },
 };
 
+/* ─── Destination Mood System ─────────────────────────────── */
+
+interface MoodTheme {
+  moodLabel:   string;
+  moodTagline: string;
+  pageBg:      string;
+  pageGlow:    string;
+  cardBorder:  string;
+  cardTint:    string;
+  accentColor: string;
+  accentLight: string;
+  formGlow:    string;
+}
+
+const MOOD_THEMES: Record<string, MoodTheme> = {
+  Meghalaya: {
+    moodLabel:   "Monsoon Serenity",
+    moodTagline: "Misty · Calm · Adventurous",
+    pageBg:      "#E8EEF8",
+    pageGlow:    "radial-gradient(ellipse 100% 45% at 50% 0%, rgba(37,81,204,0.07) 0%, transparent 100%)",
+    cardBorder:  "#D2E0F2",
+    cardTint:    "#F4F8FD",
+    accentColor: "#2551CC",
+    accentLight: "#EEF3FB",
+    formGlow:    "0 32px 120px rgba(14,22,46,0.20), 0 8px 32px rgba(14,22,46,0.08)",
+  },
+  "Arunachal Pradesh": {
+    moodLabel:   "Mountain Expedition",
+    moodTagline: "Adventure · Rugged · Sunrise Energy",
+    pageBg:      "#EDE9E1",
+    pageGlow:    "radial-gradient(ellipse 100% 45% at 50% 0%, rgba(184,94,26,0.09) 0%, transparent 100%)",
+    cardBorder:  "#DDD5C8",
+    cardTint:    "#FAF7F3",
+    accentColor: "#B85E1A",
+    accentLight: "#FBF1E7",
+    formGlow:    "0 32px 120px rgba(184,94,26,0.16), 0 8px 32px rgba(184,94,26,0.08)",
+  },
+  Sikkim: {
+    moodLabel:   "Alpine Calm",
+    moodTagline: "Minimal · Peaceful · Elevated",
+    pageBg:      "#EBF1F8",
+    pageGlow:    "radial-gradient(ellipse 100% 45% at 50% 0%, rgba(26,75,175,0.07) 0%, transparent 100%)",
+    cardBorder:  "#D0DCF0",
+    cardTint:    "#F5F8FD",
+    accentColor: "#1A4BAF",
+    accentLight: "#EBF1FB",
+    formGlow:    "0 32px 120px rgba(26,75,175,0.16), 0 8px 32px rgba(26,75,175,0.08)",
+  },
+};
+
 function TerrainSVG({ terrain, far, mid, near }: { terrain: "hills" | "peaks"; far: string; mid: string; near: string }) {
   if (terrain === "hills") {
     return (
@@ -554,7 +651,7 @@ function DestinationHero({
                   className="text-[9px] font-bold px-2 py-0.5 rounded-full leading-none"
                   style={{ background: theme.badgeBg, border: `1px solid ${theme.badgeBorder}`, color: theme.textAccent }}
                 >
-                  {season.emoji} {season.name}
+                  {season.name}
                 </span>
               )}
             </div>
@@ -564,7 +661,7 @@ function DestinationHero({
             onClick={onReset}
             className="print-hide shrink-0 text-[11px] text-white/30 border border-white/10 rounded-full px-3.5 py-1.5 hover:bg-white/8 transition-all font-medium backdrop-blur-sm"
           >
-            ← Plan Again
+            <span className="inline-flex items-center gap-1.5"><InlineIcon name="arrow-left" size={11} strokeWidth={2} color="rgba(255,255,255,0.30)" />Plan Again</span>
           </button>
         </div>
 
@@ -648,31 +745,263 @@ function DestinationHero({
   );
 }
 
+/* ─── Confidence tier system ─────────────────────────────── */
+
+const CONF_TIERS = [
+  { min: 85, color: "#059669", track: "#DCFCE7", glow: "rgba(5,150,105,0.15)",  label: "Excellent Match" },
+  { min: 70, color: "#2551CC", track: "#EEF3FB", glow: "rgba(37,81,204,0.15)",  label: "Great Match"     },
+  { min: 50, color: "#D97706", track: "#FEF3C7", glow: "rgba(217,119,6,0.15)",  label: "Mixed Tradeoffs" },
+  { min: 0,  color: "#DC2626", track: "#FEE2E2", glow: "rgba(220,38,38,0.15)",  label: "High Tradeoffs"  },
+] as const;
+
+function getConfTier(score: number) {
+  return CONF_TIERS.find(t => score >= t.min) ?? CONF_TIERS[CONF_TIERS.length - 1];
+}
+
+/* ─── Trip Confidence Block ───────────────────────────────── */
+
+interface TripConfidenceProps {
+  plan: TripPlan;
+  context: TripContext | null;
+  pace: string;
+  bestFor: string;
+}
+
+function TripConfidenceBlock({ plan, context, pace, bestFor }: TripConfidenceProps) {
+  const destMood = MOOD_THEMES[context?.destination ?? "Meghalaya"] ?? MOOD_THEMES["Meghalaya"]!;
+  const [count, setCount] = useState(0);
+  const hasRun  = useRef(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const scoreNum     = parseInt(plan.tripFit.score);
+  const rawScore     = scoreNum > 10 ? Math.min(scoreNum, 98) : Math.min(scoreNum * 10, 98);
+  const warningCount = plan.realityCheck.filter(r => r.startsWith("⚠")).length;
+  const confidence   = Math.max(45, rawScore - warningCount * 6);
+  const tier         = getConfTier(confidence);
+  const season       = context?.season;
+  const realityText  = [...plan.realityCheck, plan.tripFit.summary].join(" ").toLowerCase();
+
+  const drivers = [
+    {
+      label: "Weather alignment",
+      ok: season?.name !== "Monsoon" &&
+          !realityText.match(/heavy rain.*avoid|roads.*impassable|dangerous.*storm/),
+    },
+    {
+      label: "Budget fit",
+      ok: !plan.realityCheck.some(r => r.startsWith("⚠") && r.toLowerCase().includes("budget")),
+    },
+    {
+      label: "Travel pace realism",
+      ok: (context?.days ?? 7) >= 5,
+    },
+    {
+      label: "Seasonal suitability",
+      ok: season?.name !== "Monsoon",
+    },
+    {
+      label: "Route feasibility",
+      ok: !plan.realityCheck.some(
+        r => r.startsWith("⚠") && /road|landslide|closure|blocked/.test(r.toLowerCase()),
+      ),
+    },
+  ];
+
+  const aligned = drivers.filter(d => d.ok).length;
+  const R = 54;
+  const C = 2 * Math.PI * R; // ≈ 339.29
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasRun.current) {
+          hasRun.current = true;
+          const dur = 900;
+          const t0  = performance.now();
+          const tick = (now: number) => {
+            const t = Math.min((now - t0) / dur, 1);
+            setCount(Math.round((1 - (1 - t) ** 3) * confidence));
+            if (t < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [confidence]);
+
+  return (
+    <motion.div
+      ref={cardRef}
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.55, duration: 0.5 }}
+      className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] overflow-hidden"
+    >
+      {/* ── Header ── */}
+      <div className="px-6 pt-6 pb-5 border-b border-[#F0F4FB]">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-[9px] uppercase tracking-[0.22em] font-bold" style={{ color: destMood.accentColor }}>
+            Trip Intelligence
+          </p>
+          <span
+            className="text-[9px] font-semibold uppercase tracking-[0.14em] px-2.5 py-1 rounded-full border"
+            style={{
+              color:       destMood.accentColor,
+              background:  destMood.accentLight,
+              borderColor: destMood.cardBorder,
+            }}
+          >
+            {destMood.moodLabel}
+          </span>
+        </div>
+        <h2 className="text-[1.2rem] font-bold text-[#1C2333] tracking-tight leading-tight">Trip Confidence</h2>
+      </div>
+
+      {/* ── Ring + Drivers ── */}
+      <div className="px-6 py-7 flex flex-col sm:flex-row items-center sm:items-start gap-8">
+
+        {/* Ring */}
+        <div className="shrink-0 flex flex-col items-center gap-3">
+          <div className="relative" style={{ width: 144, height: 144 }}>
+            {/* Ambient glow */}
+            <div
+              className="absolute inset-0 rounded-full pointer-events-none"
+              style={{
+                background: `radial-gradient(circle at center, ${tier.glow} 0%, transparent 70%)`,
+                transform: "scale(1.18)",
+              }}
+            />
+            <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90" aria-hidden="true">
+              <circle cx="60" cy="60" r={R} fill="none" stroke={tier.track} strokeWidth="7" />
+              <motion.circle
+                cx="60" cy="60" r={R}
+                fill="none"
+                stroke={tier.color}
+                strokeWidth="7"
+                strokeLinecap="round"
+                initial={{ strokeDasharray: `0 ${C}` }}
+                animate={{ strokeDasharray: `${(confidence / 100) * C} ${C}` }}
+                transition={{ duration: 0.9, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.55 }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+              <div className="flex items-end gap-0.5">
+                <span
+                  className="text-[2.6rem] font-extrabold tabular-nums leading-none tracking-[-0.03em]"
+                  style={{ color: tier.color }}
+                >
+                  {count}
+                </span>
+                <span
+                  className="text-base font-bold leading-[2.1] tabular-nums"
+                  style={{ color: tier.color, opacity: 0.6 }}
+                >
+                  %
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-0.5 text-center">
+            <span className="text-[13.5px] font-bold leading-none" style={{ color: tier.color }}>
+              {tier.label}
+            </span>
+            <span className="text-[11px] text-[#A8B5C8] font-medium mt-0.5">
+              {aligned} of 5 factors confirmed
+            </span>
+          </div>
+        </div>
+
+        {/* Drivers */}
+        <div className="flex-1 w-full flex flex-col justify-center gap-3.5 sm:pt-1">
+          <p className="text-[10px] text-[#A8B5C8] uppercase tracking-[0.18em] font-bold">
+            Confidence Drivers
+          </p>
+          {drivers.map((driver, i) => (
+            <motion.div
+              key={driver.label}
+              initial={{ opacity: 0, x: 10 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-16px" }}
+              transition={{ duration: 0.30, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.60 + i * 0.07 }}
+              className={`flex items-center gap-3 rounded-xl py-1 px-2 -mx-2 transition-colors ${!driver.ok ? "bg-amber-50/60" : ""}`}
+            >
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                style={
+                  driver.ok
+                    ? { background: `${tier.color}1A` }
+                    : { background: "#FEF3C7" }
+                }
+              >
+                {driver.ok
+                  ? <InlineIcon name="check2" size={11} strokeWidth={2.5} color={tier.color} />
+                  : <InlineIcon name="warning" size={11} strokeWidth={2} color="#D97706" />
+                }
+              </div>
+              <span className="text-[13.5px] font-medium text-[#374151] leading-none flex-1">
+                {driver.label}
+              </span>
+              {!driver.ok && (
+                <span className="text-[9.5px] font-semibold text-[#D97706] bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">
+                  Review
+                </span>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Stat grid ── */}
+      <div className="px-6 pb-6 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {[
+          { label: "Weather",     value: season ? season.name : "—" },
+          { label: "Budget",      value: context?.budget.formatted ?? "—"              },
+          { label: "Travel Pace", value: pace                                           },
+          { label: "Best For",    value: bestFor                                        },
+        ].map(({ label, value }, i) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: 8 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-20px" }}
+            transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.06 * i }}
+            className="rounded-2xl px-4 py-3.5 flex flex-col gap-1 border transition-colors duration-500"
+            style={{ background: destMood.cardTint, borderColor: destMood.cardBorder }}
+          >
+            <span className="text-[9px] text-[#A8B5C8] uppercase tracking-[0.18em] font-bold">{label}</span>
+            <span className="text-[13px] font-semibold text-[#1C2333] leading-snug">{value}</span>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 /* ─── Results ─────────────────────────────────────────────── */
 
 function TripResults({ plan, context, onReset }: { plan: TripPlan; context: TripContext | null; onReset: () => void }) {
+  const mood = MOOD_THEMES[context?.destination ?? "Meghalaya"] ?? MOOD_THEMES["Meghalaya"]!;
+
   const scoreNum     = parseInt(plan.tripFit.score);
-  const warningCount  = plan.realityCheck.filter(r => r.startsWith("⚠")).length;
-  const base          = scoreNum > 10 ? Math.min(scoreNum, 98) : Math.min(scoreNum * 10, 98);
-  const confidence    = Math.max(52, base - warningCount * 7);
-  const confColor     = confidence >= 82 ? "#16A34A" : confidence >= 65 ? "#2551CC" : "#D97706";
-  const confLabel     = confidence >= 82 ? "High confidence" : confidence >= 65 ? "Plan with awareness" : "Careful planning needed";
-  const circumference = 87.96;
+  const scoreDisplay = scoreNum > 10 ? `${scoreNum}%` : `${scoreNum * 10}%`;
   const [openDay,    setOpenDay]    = useState<number>(plan.itinerary[0]?.day ?? 1);
   const [showCTA,    setShowCTA]    = useState(false);
   const [saved,      setSaved]      = useState(false);
+  const [copied,     setCopied]     = useState(false);
+  const [sharing,    setSharing]    = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => {
-      const scrollable = document.body.scrollHeight - window.innerHeight;
-      setShowCTA(scrollable > 0 && window.scrollY / scrollable > 0.30);
-    };
+    const onScroll = () => setShowCTA(window.scrollY > 420);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Keyboard Cmd+P / Ctrl+P: expand all days via CSS, collapse after
   useEffect(() => {
     const before = () => setIsPrinting(true);
     const after  = () => setIsPrinting(false);
@@ -685,14 +1014,45 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
   }, []);
 
   function handleSave() {
-    // flushSync forces React to re-render synchronously before window.print() captures the DOM
-    flushSync(() => {
-      setSaved(true);
-      setIsPrinting(true);
-    });
+    try {
+      localStorage.setItem("ntp-saved-trip", JSON.stringify({
+        plan, context, savedAt: new Date().toISOString(),
+      }));
+    } catch { /* localStorage unavailable */ }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2400);
+  }
+
+  async function handleShare() {
+    const lines = [
+      plan.tripTitle,
+      context?.destination ?? "Northeast India",
+      context ? `${context.startDateFormatted} – ${context.endDateFormatted} · ${context.days} Day${context.days !== 1 ? "s" : ""}` : "",
+      context ? `${context.travelers} Traveller${context.travelers !== 1 ? "s" : ""}` : "",
+      context ? `${context.budget.formatted} per person` : "",
+      `Trip Match: ${scoreDisplay} — ${plan.tripFit.summary}`,
+      "",
+      "Planned with Rhinotrek",
+    ].filter(Boolean);
+    const text = lines.join("\n");
+
+    setSharing(true);
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: plan.tripTitle, text });
+      } else {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2400);
+      }
+    } catch { /* user cancelled */ }
+    finally { setSharing(false); }
+  }
+
+  function handleDownload() {
+    flushSync(() => setIsPrinting(true));
     window.print();
     setIsPrinting(false);
-    setTimeout(() => setSaved(false), 1800);
   }
 
   function getPace(): string {
@@ -709,96 +1069,43 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
   }
 
   return (
-    <div className={`min-h-screen bg-[#EEF3FB] pt-24 px-4 transition-[padding] duration-300 ${showCTA ? "pb-36 md:pb-20" : "pb-20"}`}>
-      <div className="max-w-2xl mx-auto flex flex-col gap-6">
+    <div
+      className={`relative min-h-screen pt-24 px-4 transition-[padding] duration-500 ${showCTA ? "pb-32 md:pb-20" : "pb-20"}`}
+      style={{ background: mood.pageBg, transition: "background 0.6s ease" }}
+    >
+      {/* Ambient mood glow */}
+      <div
+        className="absolute top-0 inset-x-0 h-[520px] pointer-events-none z-0"
+        style={{ background: mood.pageGlow }}
+      />
+      <div className="relative z-10 max-w-2xl mx-auto flex flex-col gap-6">
 
         {/* ── Cinematic Destination Hero ── */}
         <DestinationHero plan={plan} context={context} onReset={onReset} />
 
-        {/* ── Trip Fit Overview ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55, duration: 0.5 }}
-          className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] px-6 py-5 flex flex-col gap-4"
-        >
-          {/* Trust badges */}
-          <div className="flex items-center gap-5 flex-wrap">
-            {(["Reality Checked", context?.season ? "Weather Aware" : null, "Budget Matched"] as (string | null)[])
-              .filter(Boolean)
-              .map((badge) => (
-                <span key={badge as string} className="flex items-center gap-1.5 text-[11px] text-[#6B7280] font-medium">
-                  <span className="text-[#2551CC] font-bold text-xs">✓</span>
-                  {badge}
-                </span>
-              ))}
-          </div>
-
-          {/* Reason tags */}
-          {plan.tripFit.reasons.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {plan.tripFit.reasons.map((r, i) => {
-                const warn = r.startsWith("⚠");
-                return (
-                  <span
-                    key={i}
-                    className={`text-[10px] px-2.5 py-1 rounded-full font-medium ${
-                      warn
-                        ? "bg-amber-50 text-amber-700 border border-amber-200"
-                        : "bg-[#EEF3FB] text-[#6B7280] border border-[#DDE8F7]"
-                    }`}
-                  >
-                    {r}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Stat grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {[
-              { label: "Weather",      value: context?.season ? `${context.season.emoji} ${context.season.name}` : "—" },
-              { label: "Budget",       value: context?.budget.formatted ?? "—" },
-              { label: "Travel Pace",  value: getPace() },
-              { label: "Best For",     value: getBestFor() },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-[#F9FBFF] rounded-2xl px-4 py-3.5 flex flex-col gap-1 border border-[#DDE8F7]">
-                <span className="text-[9px] text-[#A8B5C8] uppercase tracking-[0.18em] font-bold">{label}</span>
-                <span className="text-[13px] font-semibold text-[#1C2333] leading-snug">{value}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        {/* ── Trip Confidence ── */}
+        <TripConfidenceBlock
+          plan={plan}
+          context={context}
+          pace={getPace()}
+          bestFor={getBestFor()}
+        />
 
         {/* ── Local Reality Layer ── */}
-        <div className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] p-7">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -2, boxShadow: "0 8px 28px rgba(37,81,204,0.09), 0 1px 4px rgba(37,81,204,0.04)" }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="bg-white rounded-3xl border shadow-[0_1px_4px_rgba(37,81,204,0.04)] p-7 transition-colors duration-500"
+          style={{ borderColor: mood.cardBorder }}
+        >
 
-          {/* Header + Confidence Score */}
-          <div className="flex items-start justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-[1.25rem] font-bold text-[#1C2333] leading-tight tracking-tight">Local Reality Layer</h2>
-              <p className="text-[13px] text-[#9CA3AF] mt-1.5 leading-snug">What you actually need to know · {confLabel}</p>
-            </div>
-            <div className="shrink-0 flex flex-col items-center gap-1.5">
-              <div className="relative w-14 h-14">
-                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="#EEF3FB" strokeWidth="2.5" />
-                  <circle
-                    cx="18" cy="18" r="14"
-                    fill="none"
-                    stroke={confColor}
-                    strokeWidth="2.5"
-                    strokeDasharray={`${(confidence / 100) * circumference} ${circumference}`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-[#1C2333]">
-                  {confidence}%
-                </span>
-              </div>
-              <span className="text-[9px] text-[#A8B5C8] uppercase tracking-[0.14em] font-medium">Confidence</span>
-            </div>
+          {/* Header */}
+          <div className="mb-6">
+            <h2 className="text-[1.25rem] font-bold text-[#1C2333] leading-tight tracking-tight">Local Reality Layer</h2>
+            <p className="text-[13px] text-[#9CA3AF] mt-1.5 leading-snug">What you actually need to know before you go</p>
           </div>
 
           {/* Insight cards */}
@@ -806,20 +1113,27 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
             {plan.realityCheck.map((item, i) => {
               const { icon, label, bg, border, iconBg, iconColor, labelColor, textColor, text } = classify(item);
               return (
-                <div key={i} className={`flex gap-3.5 items-start px-4 py-4 rounded-2xl border ${bg} ${border}`}>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold ${iconBg} ${iconColor}`}>
-                    {icon}
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -8 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: "-20px" }}
+                  transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.06 * i }}
+                  className={`flex gap-3.5 items-start px-4 py-4 rounded-2xl border ${bg} ${border}`}
+                >
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+                    <InlineIcon name={icon} size={15} strokeWidth={1.75} />
                   </div>
                   <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                     <span className={`text-[11px] font-medium ${labelColor}`}>{label}</span>
                     <p className={`text-[0.9375rem] leading-relaxed mt-0.5 ${textColor}`}>{text}</p>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
 
-        </div>
+        </motion.div>
 
         {/* Travel Intelligence — 3 premium cards */}
         {context?.season && (() => {
@@ -842,12 +1156,18 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
             <div className="flex flex-col gap-3">
 
               {/* ── Card 1: Weather Snapshot ── */}
-              <div className="rounded-[28px] border border-[#C0D8F5] overflow-hidden">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -2, boxShadow: "0 8px 28px rgba(37,81,204,0.09)" }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.00 }}
+                className="rounded-[28px] border border-[#C0D8F5] overflow-hidden"
+              >
                 <div className="bg-gradient-to-br from-[#EEF5FF] to-white px-6 pt-6 pb-5">
                   <div className="flex items-center gap-3 mb-5">
-                    <div className="w-10 h-10 rounded-2xl bg-[#DBEAFE] flex items-center justify-center text-xl shrink-0">
-                      {s.emoji}
-                    </div>
+                    <PremiumIcon name={s.icon} size={18} containerSize={40} radius={14} strokeWidth={1.75}
+                      bg="rgba(53,94,157,0.08)" border="rgba(53,94,157,0.14)" shadow="0 1px 6px rgba(53,94,157,0.08), inset 0 1px 0 rgba(255,255,255,0.70)" />
                     <div>
                       <p className="text-xs font-medium text-[#9CA3AF] leading-none mb-1.5">Weather Snapshot</p>
                       <p className="text-xs font-semibold text-[#1D4ED8] leading-none">{s.name} · {s.months}</p>
@@ -869,15 +1189,21 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                     </p>
                   </div>
                 )}
-              </div>
+              </motion.div>
 
               {/* ── Card 2: Road & Permit Reality ── */}
-              <div className="rounded-[28px] border border-[#F0CFA0] overflow-hidden">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -2, boxShadow: "0 8px 28px rgba(217,119,6,0.09)" }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.08 }}
+                className="rounded-[28px] border border-[#F0CFA0] overflow-hidden"
+              >
                 <div className="bg-gradient-to-br from-[#FFFBF0] to-white px-6 pt-6 pb-5">
                   <div className="flex items-center gap-3 mb-5">
-                    <div className="w-10 h-10 rounded-2xl bg-[#FEF3C7] flex items-center justify-center text-xl shrink-0">
-                      🛣
-                    </div>
+                    <PremiumIcon name="road" size={18} containerSize={40} radius={14} strokeWidth={1.75}
+                      bg="rgba(183,121,31,0.08)" border="rgba(183,121,31,0.14)" shadow="0 1px 6px rgba(183,121,31,0.08), inset 0 1px 0 rgba(255,255,255,0.70)" />
                     <div>
                       <p className="text-xs font-medium text-[#9CA3AF] leading-none mb-1.5">Road & Permit Reality</p>
                       {p?.required
@@ -917,15 +1243,21 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                     </p>
                   </div>
                 )}
-              </div>
+              </motion.div>
 
               {/* ── Card 3: Why This Season Works ── */}
-              <div className="rounded-[28px] border border-[#A8E0BC] overflow-hidden">
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -2, boxShadow: "0 8px 28px rgba(22,163,74,0.09)" }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.16 }}
+                className="rounded-[28px] border border-[#A8E0BC] overflow-hidden"
+              >
                 <div className="bg-gradient-to-br from-[#F0FDF6] to-white px-6 pt-6 pb-5">
                   <div className="flex items-center gap-3 mb-5">
-                    <div className="w-10 h-10 rounded-2xl bg-[#DCFCE7] flex items-center justify-center text-xl shrink-0">
-                      ✨
-                    </div>
+                    <PremiumIcon name="sparkles" size={18} containerSize={40} radius={14} strokeWidth={1.75}
+                      bg="rgba(93,139,74,0.08)" border="rgba(93,139,74,0.14)" shadow="0 1px 6px rgba(93,139,74,0.08), inset 0 1px 0 rgba(255,255,255,0.70)" />
                     <div>
                       <p className="text-xs font-medium text-[#9CA3AF] leading-none mb-1.5">Why This Season Works</p>
                       <p className="text-xs font-semibold text-[#16A34A] leading-none">{s.pacing.split(";")[0].split("—")[0].trim()}</p>
@@ -947,7 +1279,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                     </p>
                   </div>
                 )}
-              </div>
+              </motion.div>
 
             </div>
           );
@@ -960,7 +1292,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
             {context.festivals.map((f) => (
               <div key={f.name} className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-base">🎪</span>
+                  <InlineIcon name="festival" size={15} strokeWidth={1.75} />
                   <p className="text-sm font-bold text-[#1C2333]">{f.name}</p>
                   <span className="text-xs bg-white border border-[#DDE8F7] text-[#A8B5C8] rounded-full px-2 py-0.5">{f.duration}</span>
                 </div>
@@ -971,7 +1303,14 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
         )}
 
         {/* Getting There — Premium Timeline */}
-        <div className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] px-6 py-6 flex flex-col gap-5">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -2, boxShadow: "0 8px 28px rgba(37,81,204,0.09), 0 1px 4px rgba(37,81,204,0.04)" }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] px-6 py-6 flex flex-col gap-5"
+        >
           <h2 className="text-[1.15rem] font-bold text-[#1C2333] tracking-tight">Getting There</h2>
 
           <div className="flex flex-col">
@@ -983,15 +1322,50 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
               const dest   = parts[1]?.trim();
 
               return (
-                <div key={i} className="relative flex items-start gap-3">
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-20px" }}
+                  transition={{ duration: 0.38, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.08 * i }}
+                  className="relative flex items-start gap-3"
+                >
                   {/* Connector line */}
                   {!isLast && (
-                    <div className="absolute left-[19px] top-11 bottom-0 w-px bg-gradient-to-b from-[#DDE8F7] via-[#DDE8F7]/50 to-transparent" />
+                    <motion.div
+                      className="absolute left-[19px] top-11 bottom-0 w-px bg-gradient-to-b from-[#DDE8F7] via-[#DDE8F7]/50 to-transparent"
+                      style={{ transformOrigin: "top" }}
+                      initial={{ scaleY: 0 }}
+                      whileInView={{ scaleY: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.20 + 0.08 * i }}
+                    />
                   )}
 
                   {/* Transport icon badge */}
-                  <div className="relative z-10 flex-shrink-0 w-10 h-10 rounded-2xl bg-[#EEF3FB] border border-[#DDE8F7]/80 flex items-center justify-center text-base shadow-[0_1px_4px_rgba(37,81,204,0.06)] mt-0.5">
-                    {leg.mode}
+                  <div
+                    className="relative z-10 flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center mt-0.5 overflow-hidden"
+                    style={
+                      isTaxiMode(leg.mode)
+                        ? { background: "#EEF3FB", border: "1px solid rgba(221,232,247,0.80)", boxShadow: "0 1px 4px rgba(37,81,204,0.06)" }
+                        : isFlightMode(leg)
+                        ? { background: "rgba(53,94,157,0.10)", border: "1px solid rgba(53,94,157,0.20)", boxShadow: "0 1px 6px rgba(53,94,157,0.12)" }
+                        : { background: "#EEF3FB", border: "1px solid rgba(221,232,247,0.80)", boxShadow: "0 1px 4px rgba(37,81,204,0.06)" }
+                    }
+                  >
+                    {isTaxiMode(leg.mode) ? (
+                      <Image
+                        src="/taxi.png"
+                        alt="Taxi"
+                        width={38}
+                        height={38}
+                        className="object-contain scale-110"
+                      />
+                    ) : isFlightMode(leg) ? (
+                      <InlineIcon name="plane" size={20} strokeWidth={1.5} color="#355E9D" />
+                    ) : (
+                      <InlineIcon name={getTransportIconName(leg)} size={18} strokeWidth={1.75} color="#355E9D" />
+                    )}
                   </div>
 
                   {/* Segment card */}
@@ -1001,7 +1375,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                         {origin && dest ? (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[0.9375rem] font-semibold text-[#1C2333]">{origin}</span>
-                            <span className="text-xs text-[#A8B5C8] leading-none font-medium">→</span>
+                            <InlineIcon name="arrow-right" size={12} strokeWidth={2} color="#A8B5C8" />
                             <span className="text-[0.9375rem] font-semibold text-[#1C2333]">{dest}</span>
                           </div>
                         ) : (
@@ -1021,17 +1395,88 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
+
+        {/* ── Journey Map ── */}
+        {(() => {
+          const routeLocations = [
+            "Guwahati",
+            ...Array.from(new Set(plan.itinerary.map(d => d.location.split(",")[0].trim()))),
+          ];
+          return (
+            <div className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] overflow-hidden result-card print-hide">
+
+              {/* Header */}
+              <div className="px-6 pt-5 pb-4 border-b border-[#EEF3FB]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-[1.15rem] font-bold text-[#1C2333] tracking-tight">Journey Map</h2>
+                    <p className="text-[12px] text-[#A8B5C8] mt-0.5 font-medium">
+                      Click a pin to open that day · Tap day cards to see location
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-bold text-[#2551CC] bg-[#EEF3FB] px-2.5 py-1 rounded-full mt-0.5">
+                    {plan.itinerary.length} stops
+                  </span>
+                </div>
+
+                {/* Route breadcrumb strip */}
+                <div className="flex items-center gap-1.5 mt-3.5 overflow-x-auto scrollbar-none pb-0.5">
+                  {routeLocations.map((loc, i) => (
+                    <div key={`${loc}-${i}`} className="flex items-center gap-1.5 flex-shrink-0">
+                      {i > 0 && (
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="text-[#C8D9F5] flex-shrink-0">
+                          <path d="M2 5h6M5.5 2.5L8 5l-2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                      <span
+                        className={`text-[11px] font-semibold whitespace-nowrap ${
+                          i === 0 ? "text-[#1C2333]" : "text-[#6B7280]"
+                        }`}
+                      >
+                        {loc}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Map */}
+              <div className="h-[300px] sm:h-[390px]">
+                <JourneyMap
+                  itinerary={plan.itinerary}
+                  activeDay={openDay}
+                  onDaySelect={(day) => {
+                    setOpenDay(day);
+                    setTimeout(() => {
+                      document.getElementById(`day-${day}`)?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                      });
+                    }, 800);
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Stay */}
-        <div className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] px-6 py-5 flex flex-col gap-2">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -2, boxShadow: "0 8px 28px rgba(37,81,204,0.09), 0 1px 4px rgba(37,81,204,0.04)" }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="bg-white rounded-3xl border border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.04)] px-6 py-5 flex flex-col gap-2"
+        >
           <h2 className="text-[1.15rem] font-bold text-[#1C2333] tracking-tight">Where You&apos;ll Stay</h2>
           <div className="flex items-center gap-2.5 mt-1">
-            <span className="text-xl">🏨</span>
+            <PremiumIcon name="hotel" size={16} containerSize={32} radius={10} strokeWidth={1.75} shadow="none" />
             <span className="text-lg font-bold text-[#1C2333]">{plan.stay.base}</span>
           </div>
           <p className="text-xl font-bold text-[#2551CC] tabular-nums">{plan.stay.priceRange}</p>
@@ -1040,15 +1485,15 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
               <span key={tag} className="text-xs bg-[#F9FBFF] text-[#6B7280] rounded-full px-2.5 py-1 font-medium border border-[#DDE8F7]">{tag}</span>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Budget Estimate — Premium Spending Summary */}
         {(() => {
           const rows: { label: string; icon: string; val: string; color: string }[] = [
-            { label: "Transport",  icon: "🚌", val: context?.budget.breakdown.transport ?? plan.budget.transport,  color: "from-[#2551CC] to-[#4A6FDB]" },
-            { label: "Stay",       icon: "🏨", val: context?.budget.breakdown.stay      ?? plan.budget.stay,       color: "from-[#059669] to-[#10B981]" },
-            { label: "Food",       icon: "🍛", val: context?.budget.breakdown.food      ?? plan.budget.food,       color: "from-[#D97706] to-[#F59E0B]" },
-            { label: "Activities", icon: "🛺", val: context?.budget.breakdown.local     ?? plan.budget.localTravel, color: "from-[#7C3AED] to-[#A78BFA]" },
+            { label: "Transport",  icon: "transport", val: context?.budget.breakdown.transport ?? plan.budget.transport,  color: "from-[#2551CC] to-[#4A6FDB]" },
+            { label: "Stay",       icon: "stay",      val: context?.budget.breakdown.stay      ?? plan.budget.stay,       color: "from-[#059669] to-[#10B981]" },
+            { label: "Food",       icon: "food",      val: context?.budget.breakdown.food      ?? plan.budget.food,       color: "from-[#D97706] to-[#F59E0B]" },
+            { label: "Activities", icon: "activities",val: context?.budget.breakdown.local     ?? plan.budget.localTravel, color: "from-[#7C3AED] to-[#A78BFA]" },
           ];
           const mids  = rows.map((r) => parseMidpoint(r.val));
           const total = mids.reduce((a, b) => a + b, 0) || 1;
@@ -1061,7 +1506,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                 <div className="absolute inset-0 bg-gradient-to-br from-[#EEF3FB] via-[#F4F8FF] to-white pointer-events-none" />
                 <div className="absolute top-[-40px] right-[-20px] w-[180px] h-[180px] rounded-full bg-[#2551CC]/7 blur-[55px] pointer-events-none" />
                 <div className="relative z-10">
-                  <p className="text-xs text-[#9CA3AF] mb-4">Your estimated spend</p>
+                  <p className="text-[10px] font-bold text-[#A8B5C8]/80 uppercase tracking-[0.14em] mb-5">Your estimated spend</p>
                   {context ? (
                     <>
                       <motion.p
@@ -1091,8 +1536,8 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                   return (
                     <div key={label} className="flex flex-col gap-2">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base leading-none">{icon}</span>
+                        <div className="flex items-center gap-2.5">
+                          <PremiumIcon name={icon} size={14} containerSize={28} radius={8} strokeWidth={1.75} shadow="none" />
                           <span className="text-[0.9375rem] font-medium text-[#1C2333]">{label}</span>
                         </div>
                         <div className="flex items-center gap-2.5 shrink-0">
@@ -1103,8 +1548,9 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                       <div className="h-1.5 bg-[#EEF3FB] rounded-full overflow-hidden">
                         <motion.div
                           initial={{ width: "0%" }}
-                          animate={{ width: `${pct}%` }}
-                          transition={{ duration: 0.55, ease: "easeOut", delay: 0.1 * i }}
+                          whileInView={{ width: `${pct}%` }}
+                          viewport={{ once: true, margin: "-30px" }}
+                          transition={{ duration: 0.70, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.10 * i }}
                           className={`h-full rounded-full bg-gradient-to-r ${color}`}
                         />
                       </div>
@@ -1128,18 +1574,19 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
             const [morning, afternoon, evening] = distributeHighlights(day.highlights);
             const note   = getDayNote(day.location, day.highlights, plan.realityCheck);
             const slots  = [
-              { icon: "🌅", label: "Morning",   items: morning },
-              { icon: "☀️",  label: "Afternoon", items: afternoon },
-              { icon: "🌙", label: "Evening",   items: evening },
+              { icon: "morning",   label: "Morning",   items: morning },
+              { icon: "afternoon", label: "Afternoon", items: afternoon },
+              { icon: "evening",   label: "Evening",   items: evening },
             ].filter(s => s.items.length > 0);
 
             return (
               <div
                 key={day.day}
-                className={`rounded-2xl border bg-white overflow-hidden transition-shadow duration-200 ${
+                id={`day-${day.day}`}
+                className={`rounded-2xl border bg-white overflow-hidden transition-[border-color,box-shadow,transform] duration-200 ${
                   isOpen
                     ? "border-[#C8D9F5] shadow-[0_4px_20px_rgba(37,81,204,0.08)]"
-                    : "border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.03)]"
+                    : "border-[#DDE8F7] shadow-[0_1px_4px_rgba(37,81,204,0.03)] hover:border-[#C8D9F5]/60 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(37,81,204,0.07)]"
                 }`}
               >
                 {/* Card header — always visible, hidden on print */}
@@ -1191,7 +1638,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                           <div key={slot.label} className="flex gap-3">
                             {/* Icon + connector line */}
                             <div className="flex flex-col items-center shrink-0 pt-0.5">
-                              <span className="text-[1.05rem] leading-none">{slot.icon}</span>
+                              <InlineIcon name={slot.icon} size={15} strokeWidth={1.75} />
                               {si < slots.length - 1 && (
                                 <div className="w-px flex-1 bg-gradient-to-b from-[#DDE8F7] to-[#DDE8F7]/20 mt-2 min-h-[16px]" />
                               )}
@@ -1209,7 +1656,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                         {/* Reality note */}
                         {note && (
                           <div className="flex items-start gap-2.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-3.5 py-3">
-                            <span className="text-sm leading-none mt-0.5 shrink-0">⚡</span>
+                            <InlineIcon name="alert" size={14} strokeWidth={1.75} color="#B7791F" className="shrink-0 mt-px" />
                             <p className="text-[11px] text-[#92400E] leading-snug">{note}</p>
                           </div>
                         )}
@@ -1225,66 +1672,170 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
 
       </div>
 
-      {/* ── Desktop: floating bottom-right card ── */}
+      {/* ── Desktop: floating top-right action card ── */}
       <AnimatePresence>
         {showCTA && (
           <motion.div
             key="cta-desktop"
-            initial={{ opacity: 0, y: 14, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0,  scale: 1    }}
-            exit={{    opacity: 0, y: 10, scale: 0.96 }}
-            transition={{ duration: 0.28, ease: "easeOut" }}
-            className="print-hide hidden md:flex fixed bottom-7 right-7 z-50 flex-col gap-3 p-5 w-[222px] rounded-[24px] bg-white/85 backdrop-blur-[22px] border border-white/60 shadow-[0_12px_48px_rgba(14,22,64,0.16),0_2px_8px_rgba(14,22,64,0.07),inset_0_1px_0_rgba(255,255,255,0.92)]"
+            initial={{ opacity: 0, x: 20, scale: 0.96 }}
+            animate={{ opacity: 1, x: 0,  scale: 1    }}
+            exit={{    opacity: 0, x: 16, scale: 0.97 }}
+            transition={{ duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="print-hide hidden md:flex fixed top-[5.5rem] right-5 z-50 flex-col w-[188px] rounded-[20px] overflow-hidden bg-white/92 backdrop-blur-[24px] border border-[#E8EDF5] shadow-[0_8px_40px_rgba(14,22,64,0.11),0_2px_8px_rgba(14,22,64,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]"
           >
-            <p className="text-sm font-bold text-[#1C2333] leading-snug">Love this trip?</p>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#2551CC] to-[#163099] text-white text-sm font-semibold rounded-2xl px-4 py-2.5 hover:opacity-90 active:scale-[0.97] transition-all shadow-sm"
-            >
-              {saved ? (
-                <><span>✓</span><span>Saved!</span></>
-              ) : (
-                <><span>🔖</span><span>Save Itinerary</span></>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={onReset}
-              className="flex items-center justify-center gap-1.5 bg-[#EEF3FB] text-[#2551CC] text-sm font-semibold rounded-2xl px-4 py-2.5 hover:bg-[#DDE8F7] active:scale-[0.97] transition-all border border-[#DDE8F7]"
-            >
-              <span>←</span><span>Plan Another Trip</span>
-            </button>
+            {/* Trip identity chip */}
+            <div className="px-4 py-3.5 bg-gradient-to-b from-[#F4F7FD] to-transparent border-b border-[#EEF3FB]">
+              <p className="text-[11px] font-bold text-[#1C2333] leading-snug line-clamp-2">{plan.tripTitle}</p>
+              <p className="text-[10px] text-[#A8B5C8] font-medium mt-0.5 tabular-nums">
+                {context?.days}d · {scoreDisplay} match
+              </p>
+            </div>
+
+            {/* Action rows */}
+            <div className="flex flex-col divide-y divide-[#F0F4FB]">
+
+              {/* Share */}
+              <button
+                type="button"
+                onClick={handleShare}
+                disabled={sharing}
+                className="flex items-center gap-3 px-4 py-[11px] hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors duration-120 text-left"
+              >
+                <motion.div
+                  animate={copied ? { scale: [1, 1.25, 1] } : {}}
+                  transition={{ duration: 0.3 }}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${copied ? "bg-emerald-100" : "bg-[#EEF3FB]"}`}
+                >
+                  {sharing ? <span className="text-[#A8B5C8] text-xs">···</span>
+                    : copied ? <InlineIcon name="check2" size={13} strokeWidth={2.5} color="#059669" />
+                    : <InlineIcon name="share" size={13} strokeWidth={1.75} color="#355E9D" />}
+                </motion.div>
+                <span className={`text-[12px] font-semibold transition-colors ${copied ? "text-emerald-600" : "text-[#1C2333]"}`}>
+                  {copied ? "Copied!" : sharing ? "Sharing…" : "Share"}
+                </span>
+              </button>
+
+              {/* Save Trip */}
+              <button
+                type="button"
+                onClick={handleSave}
+                className="flex items-center gap-3 px-4 py-[11px] hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors duration-120 text-left"
+              >
+                <motion.div
+                  animate={saved ? { scale: [1, 1.25, 1] } : {}}
+                  transition={{ duration: 0.3 }}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${saved ? "bg-emerald-100" : "bg-[#EEF3FB]"}`}
+                >
+                  {saved
+                    ? <InlineIcon name="check2" size={13} strokeWidth={2.5} color="#059669" />
+                    : <InlineIcon name="save" size={13} strokeWidth={1.75} color="#355E9D" />}
+                </motion.div>
+                <span className={`text-[12px] font-semibold transition-colors ${saved ? "text-emerald-600" : "text-[#1C2333]"}`}>
+                  {saved ? "Saved!" : "Save Trip"}
+                </span>
+              </button>
+
+              {/* Download PDF */}
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="flex items-center gap-3 px-4 py-[11px] hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors duration-120 text-left"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#EEF3FB] flex items-center justify-center shrink-0">
+                  {isPrinting
+                    ? <span className="text-[#A8B5C8] text-xs">···</span>
+                    : <InlineIcon name="download" size={13} strokeWidth={1.75} color="#355E9D" />}
+                </div>
+                <span className="text-[12px] font-semibold text-[#1C2333]">
+                  {isPrinting ? "Saving…" : "Download PDF"}
+                </span>
+              </button>
+            </div>
+
+            {/* Plan Again — subdued footer link */}
+            <div className="px-4 py-2.5 border-t border-[#EEF3FB]">
+              <button
+                type="button"
+                onClick={onReset}
+                className="text-[10px] text-[#A8B5C8] hover:text-[#6B7280] transition-colors font-medium"
+              >
+                <span className="inline-flex items-center gap-1"><InlineIcon name="arrow-left" size={10} strokeWidth={2} color="#A8B5C8" />Plan Another Trip</span>
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Mobile: sticky bottom action bar ── */}
+      {/* ── Mobile: bottom sticky action bar ── */}
       <AnimatePresence>
         {showCTA && (
           <motion.div
             key="cta-mobile"
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 56 }}
             animate={{ opacity: 1, y: 0  }}
-            exit={{    opacity: 0, y: 24 }}
-            transition={{ duration: 0.28, ease: "easeOut" }}
-            className="print-hide flex md:hidden fixed bottom-0 inset-x-0 z-50 flex-col gap-2.5 px-4 pt-4 pb-[max(1.75rem,env(safe-area-inset-bottom,1.75rem))] bg-white/90 backdrop-blur-[24px] border-t border-[#DDE8F7]/50 shadow-[0_-6px_32px_rgba(14,22,64,0.11),inset_0_1px_0_rgba(255,255,255,0.85)]"
+            exit={{    opacity: 0, y: 56 }}
+            transition={{ duration: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="print-hide flex md:hidden fixed bottom-0 inset-x-0 z-50 bg-white/93 backdrop-blur-[24px] border-t border-[#E8EDF5]/70 shadow-[0_-6px_32px_rgba(14,22,64,0.10),inset_0_1px_0_rgba(255,255,255,0.92)]"
+            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom, 1.5rem))" }}
           >
-            <p className="text-[10px] font-bold text-[#A8B5C8] text-center uppercase tracking-[0.16em]">Love this trip?</p>
-            <div className="flex gap-2.5">
+            {/* Three equal action columns */}
+            <div className="flex w-full divide-x divide-[#EEF3FB]">
+
+              {/* Share */}
+              <button
+                type="button"
+                onClick={handleShare}
+                disabled={sharing}
+                className="flex-1 flex flex-col items-center gap-1.5 pt-3.5 pb-1 hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors"
+              >
+                <motion.div
+                  animate={copied ? { scale: [1, 1.22, 1] } : {}}
+                  transition={{ duration: 0.28 }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${copied ? "bg-emerald-100" : "bg-[#EEF3FB]"}`}
+                >
+                  {sharing ? <span className="text-[#A8B5C8] text-xs">···</span>
+                    : copied ? <InlineIcon name="check2" size={15} strokeWidth={2.5} color="#059669" />
+                    : <InlineIcon name="share" size={15} strokeWidth={1.75} color="#355E9D" />}
+                </motion.div>
+                <span className={`text-[9px] font-bold uppercase tracking-[0.12em] transition-colors ${copied ? "text-emerald-600" : "text-[#6B7280]"}`}>
+                  {copied ? "Copied" : "Share"}
+                </span>
+              </button>
+
+              {/* Save Trip */}
               <button
                 type="button"
                 onClick={handleSave}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#2551CC] to-[#163099] text-white text-sm font-semibold rounded-2xl py-3.5 hover:opacity-90 active:scale-[0.97] transition-all shadow-sm"
+                className="flex-1 flex flex-col items-center gap-1.5 pt-3.5 pb-1 hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors"
               >
-                {saved ? "✓ Saved!" : "🔖 Save"}
+                <motion.div
+                  animate={saved ? { scale: [1, 1.22, 1] } : {}}
+                  transition={{ duration: 0.28 }}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${saved ? "bg-emerald-100" : "bg-[#EEF3FB]"}`}
+                >
+                  {saved
+                    ? <InlineIcon name="check2" size={15} strokeWidth={2.5} color="#059669" />
+                    : <InlineIcon name="save" size={15} strokeWidth={1.75} color="#355E9D" />}
+                </motion.div>
+                <span className={`text-[9px] font-bold uppercase tracking-[0.12em] transition-colors ${saved ? "text-emerald-600" : "text-[#6B7280]"}`}>
+                  {saved ? "Saved" : "Save"}
+                </span>
               </button>
+
+              {/* Download PDF */}
               <button
                 type="button"
-                onClick={onReset}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-[#EEF3FB] text-[#2551CC] text-sm font-semibold rounded-2xl py-3.5 hover:bg-[#DDE8F7] active:scale-[0.97] transition-all border border-[#DDE8F7]"
+                onClick={handleDownload}
+                className="flex-1 flex flex-col items-center gap-1.5 pt-3.5 pb-1 hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors"
               >
-                ← Plan Again
+                <div className="w-9 h-9 rounded-full bg-[#EEF3FB] flex items-center justify-center">
+                  {isPrinting
+                    ? <span className="text-[#A8B5C8] text-xs">···</span>
+                    : <InlineIcon name="download" size={15} strokeWidth={1.75} color="#355E9D" />}
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#6B7280]">
+                  {isPrinting ? "Saving" : "PDF"}
+                </span>
               </button>
             </div>
           </motion.div>
@@ -1305,6 +1856,8 @@ function HomePage({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   error: string;
 }) {
+  const mood = MOOD_THEMES[form.destination] ?? MOOD_THEMES["Meghalaya"]!;
+
   const tripDays = form.startDate && form.endDate
     ? differenceInCalendarDays(form.endDate, form.startDate) + 1
     : form.startDate ? 1 : 5;
@@ -1326,75 +1879,218 @@ function HomePage({
   return (
     <div>
 
-      {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-[#1D3050] pt-16 pb-56 md:pb-64 flex flex-col justify-center min-h-[80vh]">
+      {/* ── Cinematic Hero ── */}
+      <section className="relative overflow-hidden min-h-[100vh] flex flex-col">
 
-        {/* Bright sky glow — wide dawn light from high above the ridge */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_130%_65%_at_50%_-8%,_#2E5485_0%,_transparent_58%)]" />
+        {/* ── Atmospheric background layers ── */}
 
-        {/* Left-side mountain atmosphere — fog drifting through valley */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(110,158,230,0.16)_0%,_transparent_52%)]" />
+        {/* Base: deep Meghalaya forest night */}
+        <div
+          className="absolute inset-0"
+          style={{ background: "linear-gradient(175deg, #020E05 0%, #030F08 28%, #041512 58%, #020C07 100%)" }}
+        />
 
-        {/* Right-side sky warmth — morning light diffusing through mist */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(140,180,240,0.10)_0%,_transparent_50%)]" />
+        {/* Primary forest atmosphere — large deep-green orb */}
+        <div
+          className="absolute top-[-14%] left-[4%] w-[960px] h-[760px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(14,72,32,0.70) 0%, transparent 58%)", filter: "blur(100px)" }}
+        />
 
-        {/* Wide diffuse mist orb — soft pre-dawn cloud light from left */}
-        <div className="absolute top-[-8%] left-[-10%] w-[780px] h-[560px] rounded-full bg-[#5088C0]/9 blur-[130px] pointer-events-none" />
+        {/* Teal monsoon cloud mass — upper right */}
+        <div
+          className="absolute top-[0%] right-[-10%] w-[680px] h-[560px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(8,58,62,0.54) 0%, transparent 62%)", filter: "blur(88px)" }}
+        />
 
-        {/* Centre sky glow — the brightening horizon behind the clouds */}
-        <div className="absolute top-[5%] right-[2%] w-[620px] h-[620px] rounded-full bg-[#2551CC]/10 blur-[120px] pointer-events-none" />
+        {/* Deep blue rainstorm atmosphere — left */}
+        <div
+          className="absolute top-[18%] left-[-14%] w-[540px] h-[440px] rounded-full pointer-events-none"
+          style={{ background: "radial-gradient(circle, rgba(10,42,80,0.46) 0%, transparent 65%)", filter: "blur(92px)" }}
+        />
 
-        {/* Horizontal mist band — fog line draped across the mountain ridges */}
-        <div className="absolute top-[38%] inset-x-0 h-[260px] bg-[radial-gradient(ellipse_100%_100%_at_50%_50%,_rgba(170,210,248,0.07)_0%,_transparent_100%)] pointer-events-none" />
+        {/* Valley mist band — mid vertical */}
+        <div
+          className="absolute top-[44%] inset-x-0 h-[300px] pointer-events-none"
+          style={{ background: "radial-gradient(ellipse 78% 100% at 50% 50%, rgba(28,88,48,0.22) 0%, transparent 100%)", filter: "blur(48px)" }}
+        />
 
-        {/* Low valley mist — soft haze at the base */}
-        <div className="absolute bottom-[15%] inset-x-0 h-[180px] bg-[radial-gradient(ellipse_80%_100%_at_50%_100%,_rgba(180,215,250,0.05)_0%,_transparent_100%)] pointer-events-none" />
+        {/* Animated slow-drifting mist — layer 1 */}
+        <motion.div
+          className="absolute bottom-[20%] inset-x-0 h-[220px] pointer-events-none"
+          style={{ background: "radial-gradient(ellipse 82% 100% at 32% 78%, rgba(16,70,36,0.28) 0%, transparent 72%)" }}
+          animate={{ x: [0, 32, 0], opacity: [0.22, 0.32, 0.22] }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+        />
 
-        {/* Vignette — barely-there edge depth */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_52%,_rgba(14,24,46,0.22)_100%)] pointer-events-none" />
+        {/* Animated slow-drifting mist — layer 2 counter-drift */}
+        <motion.div
+          className="absolute bottom-[28%] inset-x-0 h-[190px] pointer-events-none"
+          style={{ background: "radial-gradient(ellipse 68% 100% at 62% 68%, rgba(10,54,46,0.22) 0%, transparent 72%)" }}
+          animate={{ x: [0, -24, 0], opacity: [0.16, 0.26, 0.16] }}
+          transition={{ duration: 23, repeat: Infinity, ease: "easeInOut", delay: 5 }}
+        />
 
-        {/* Bottom fog fade — smooth dissolve into form card */}
-        <div className="absolute bottom-0 inset-x-0 h-56 bg-gradient-to-t from-[#EEF3FB]/28 to-transparent pointer-events-none" />
+        {/* Soft cloud pulse — upper center */}
+        <motion.div
+          className="absolute top-[6%] inset-x-0 h-[170px] pointer-events-none"
+          style={{ background: "radial-gradient(ellipse 58% 100% at 50% 0%, rgba(16,50,68,0.16) 0%, transparent 100%)" }}
+          animate={{ opacity: [0.10, 0.20, 0.10] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+        />
 
-        <div className="relative max-w-5xl mx-auto px-5 sm:px-6 text-center pt-6 sm:pt-0">
+        {/* SVG Terrain — multi-layer misty hills, waterfall streaks, winding road */}
+        <svg
+          className="absolute bottom-0 left-0 w-full"
+          viewBox="0 0 1400 320"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          {/* Far distant mountain ridgeline */}
+          <path
+            d="M0,172 L52,132 L108,155 L168,117 L232,140 L308,106 L386,126 L464,100 L544,120 L624,96 L704,113 L784,104 L864,115 L944,107 L1024,117 L1104,106 L1184,114 L1260,104 L1352,109 L1400,106 L1400,320 L0,320 Z"
+            fill="rgba(12,44,22,0.54)"
+          />
+          {/* Mid rolling hills */}
+          <path
+            d="M0,202 Q116,170 236,186 Q356,156 476,175 Q596,161 716,179 Q836,166 956,181 Q1076,169 1196,179 Q1300,175 1400,181 L1400,320 L0,320 Z"
+            fill="rgba(8,30,14,0.74)"
+          />
+          {/* Near foreground hills */}
+          <path
+            d="M0,246 Q145,208 292,228 Q448,202 598,222 Q745,209 895,227 Q1048,214 1198,229 Q1302,223 1400,231 L1400,320 L0,320 Z"
+            fill="rgba(5,20,9,0.89)"
+          />
+          {/* Waterfall streak A */}
+          <path
+            d="M392,96 Q394,148 393,186 Q392,212 390,248"
+            stroke="rgba(160,215,235,0.11)" strokeWidth="2.5" fill="none" strokeLinecap="round"
+          />
+          {/* Waterfall streak B — parallel, faint */}
+          <path
+            d="M398,102 Q400,154 399,192 Q398,218 396,252"
+            stroke="rgba(160,215,235,0.07)" strokeWidth="1.5" fill="none" strokeLinecap="round"
+          />
+          {/* Winding mountain road — barely visible */}
+          <path
+            d="M-50,312 Q180,298 338,306 Q498,308 618,299 Q738,290 876,300 Q1018,305 1158,296 Q1278,292 1452,300"
+            stroke="rgba(255,255,255,0.046)" strokeWidth="2.5" fill="none" strokeLinecap="round"
+          />
+          {/* Valley floor */}
+          <path
+            d="M0,287 Q350,273 700,279 Q1050,274 1400,281 L1400,320 L0,320 Z"
+            fill="rgba(3,11,5,0.97)"
+          />
+        </svg>
 
-          {/* Premium badge */}
-          <div className="inline-flex items-center gap-2.5 bg-white/8 text-white/55 text-[10px] font-medium px-5 py-2 rounded-full mb-12 sm:mb-10 border border-white/12 tracking-[0.2em] uppercase">
-            <span className="w-1 h-1 rounded-full bg-[#89B4FF] inline-block shrink-0" />
-            Northeast India · Planned Properly
-          </div>
+        {/* Film grain overlay */}
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.028]"
+          style={{ mixBlendMode: "overlay" }}
+          aria-hidden="true"
+        >
+          <filter id="hero-noise">
+            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="100%" height="100%" filter="url(#hero-noise)" />
+        </svg>
 
-          <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold text-white leading-[1.06] tracking-tight mb-7 sm:mb-6">
+        {/* Gradient overlay — text readability */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.08) 22%, rgba(0,0,0,0.36) 58%, rgba(0,0,0,0.75) 84%, rgba(0,0,0,0.92) 100%)" }}
+        />
+
+        {/* Edge vignette */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.30) 100%)" }}
+        />
+
+        {/* ── Hero content ── */}
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-5 sm:px-8 pt-28 pb-24 md:pt-36 md:pb-28">
+
+          {/* Top badge */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="mb-10 sm:mb-14"
+          >
+            <div className="inline-flex items-center gap-2.5 bg-white/7 border border-white/12 text-white/52 text-[10px] font-semibold px-5 py-2.5 rounded-full tracking-[0.22em] uppercase backdrop-blur-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#6DFFB0] shrink-0" />
+              RHINOTREK · NORTHEAST INDIA
+            </div>
+          </motion.div>
+
+          {/* Editorial headline */}
+          <motion.h1
+            initial={{ opacity: 0, y: 26 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.88, delay: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="text-[2.75rem] sm:text-[4.25rem] md:text-[5.75rem] font-bold text-white leading-[1.02] tracking-[-0.025em] max-w-5xl mb-7"
+          >
             Plan Northeast India<br />
-            <span className="bg-gradient-to-r from-[#89B4FF] to-[#C0D8FF] bg-clip-text text-transparent">
-              Without The Research Rabbit Hole
+            <span className="bg-gradient-to-r from-[#7CCC52] via-[#A8E060] to-[#5DB842] bg-clip-text text-transparent">
+              Like Someone Local
             </span>
-          </h1>
+          </motion.h1>
 
-          <p className="text-base md:text-lg text-white/50 max-w-xl mx-auto leading-relaxed font-light mb-10 sm:mb-8">
-            Real routes, local intelligence and practical itineraries —<br />without hours of research.
-          </p>
-          <p className="text-xs text-white/35 tracking-[0.18em] uppercase font-medium">
-            Built for travellers planning real Northeast journeys
-          </p>
+          {/* Supporting copy */}
+          <motion.p
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.78, delay: 0.34, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="text-[1rem] sm:text-[1.1rem] text-white/46 max-w-xl leading-relaxed font-light mb-12 sm:mb-14"
+          >
+            Reality-checked trips with routes, weather, permits,<br className="hidden sm:block" /> budgets and local intelligence.
+          </motion.p>
+
+          {/* Trust strip */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.68, delay: 0.50, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="flex items-center justify-center gap-5 sm:gap-8 flex-wrap"
+          >
+            {(["Route Verified", "Weather Aware", "Budget Matched", "Local Intelligence"] as const).map((t) => (
+              <span key={t} className="flex items-center gap-2 text-white/48 text-[11px] sm:text-xs font-medium">
+                <InlineIcon name="check2" size={10} strokeWidth={2.5} color="#6DFFB0" />
+                {t}
+              </span>
+            ))}
+          </motion.div>
 
         </div>
+
       </section>
 
       {/* ── Floating Planner Card ── */}
-      <div id="planner" className="relative z-10 max-w-4xl mx-auto px-4 -mt-48 md:-mt-56 scroll-mt-20">
+      <div id="planner" className="relative z-10 max-w-3xl mx-auto px-4 -mt-20 sm:-mt-28 md:-mt-36 scroll-mt-20 pb-8">
+        <motion.div
+          initial={{ opacity: 0, y: 36 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.78, delay: 0.72, ease: [0.25, 0.46, 0.45, 0.94] }}
+        >
         <form
           onSubmit={onSubmit}
           noValidate
-          className="bg-white/62 backdrop-blur-[28px] rounded-3xl shadow-[0_32px_120px_rgba(14,22,46,0.20),0_8px_32px_rgba(14,22,46,0.08),inset_0_1px_0_rgba(255,255,255,0.85)] border border-white/35 p-8 md:p-12"
+          className="rounded-[32px] border border-white/38 p-8 md:p-10"
+          style={{
+            background: "rgba(255,255,255,0.82)",
+            backdropFilter: "blur(36px)",
+            WebkitBackdropFilter: "blur(36px)",
+            boxShadow: `${mood.formGlow}, inset 0 1px 0 rgba(255,255,255,0.92)`,
+            transition: "box-shadow 0.6s ease",
+          } as React.CSSProperties}
         >
-          <p className="text-[10px] font-bold text-[#6B7280]/40 uppercase tracking-[0.16em] mb-9">Plan your trip</p>
+          <p className="text-[10px] font-bold text-[#6B7280]/52 uppercase tracking-[0.16em] mb-9">Plan your trip</p>
 
           {/* Row 1: From + Destination */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-9 mb-9">
 
             <div className="flex flex-col gap-2.5">
-              <label className="text-[10px] font-bold text-[#6B7280]/45 uppercase tracking-[0.14em]">From</label>
+              <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">From</label>
               <input
                 type="text"
                 placeholder="Your city — Delhi, Bangalore, Kolkata..."
@@ -1405,12 +2101,27 @@ function HomePage({
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <label className="text-[10px] font-bold text-[#6B7280]/45 uppercase tracking-[0.14em]">Destination</label>
+              <div className="flex items-baseline gap-3">
+                <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Destination</label>
+                <motion.span
+                  key={mood.moodLabel}
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-[9px] font-semibold uppercase tracking-[0.16em]"
+                  style={{ color: mood.accentColor }}
+                >
+                  {mood.moodLabel}
+                </motion.span>
+              </div>
               <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1 pt-3">
                 {DESTINATIONS.map((d) => (
                   <div key={d.name} className="relative flex-shrink-0">
-                    <Pill selected={form.destination === d.name} onClick={() => setForm({ ...form, destination: d.name })} disabled={!d.active}>
-                      {d.emoji} {d.short}
+                    <Pill selected={form.destination === d.name} onClick={() => setForm({ ...form, destination: d.name })} disabled={!d.active} accentColor={mood.accentColor}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <InlineIcon name={d.icon} size={12} strokeWidth={1.75} color={form.destination === d.name ? "white" : mood.accentColor} />
+                        {d.short}
+                      </span>
                     </Pill>
                     {!d.active && (
                       <span className="absolute -top-2 -right-1.5 text-[9px] font-bold bg-[#DDE8F7] text-[#6B7280] px-1.5 py-0.5 rounded-full leading-none">Soon</span>
@@ -1425,7 +2136,7 @@ function HomePage({
           {/* Row 2: Travel Dates */}
           <div className="mb-9">
             <div className="flex flex-col gap-2.5">
-              <label className="text-[10px] font-bold text-[#6B7280]/45 uppercase tracking-[0.14em]">Travel Dates</label>
+              <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Travel Dates</label>
               <DateRangePicker
                 value={form.startDate ? { from: form.startDate, to: form.endDate } : undefined}
                 onChange={(range: DateRange | undefined) =>
@@ -1438,7 +2149,12 @@ function HomePage({
           {/* Season Snippet */}
           {form.startDate && (
             <div className="mb-9">
-              <SeasonSnippet destination={form.destination} startDate={form.startDate} />
+              <SeasonSnippet
+                destination={form.destination}
+                startDate={form.startDate}
+                moodBorder={mood.cardBorder}
+                moodBg={`${mood.accentLight}99`}
+              />
             </div>
           )}
 
@@ -1461,7 +2177,7 @@ function HomePage({
 
           {/* Travel Mood */}
           <div className="flex flex-col gap-3">
-            <label className="text-[10px] font-bold text-[#6B7280]/45 uppercase tracking-[0.14em]">Travel Mood</label>
+            <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Travel Mood</label>
             <div className="flex flex-wrap gap-2">
               {VIBES.map((v) => (
                 <Pill key={v} selected={form.vibes.includes(v)} onClick={() => toggleVibe(v)}>{v}</Pill>
@@ -1479,6 +2195,7 @@ function HomePage({
           </button>
 
         </form>
+        </motion.div>
       </div>
 
       {/* ── How It Works ── */}
@@ -1514,7 +2231,7 @@ function HomePage({
       {/* ── Destinations ── */}
       <section id="destinations" className="max-w-6xl mx-auto px-4 pb-24 scroll-mt-20">
         <h2 className="text-2xl font-bold text-[#1C2333] mb-2">Destinations</h2>
-        <p className="text-sm text-[#A8B5C8] mb-8">Northeast India, planned properly.</p>
+        <p className="text-sm text-[#A8B5C8] mb-8">By Rhinotrek — Northeast India, planned properly.</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {[
             {
@@ -1523,7 +2240,7 @@ function HomePage({
               places: "Shillong · Cherrapunji · Dawki",
               from: "from-[#0C1730]", via: "via-[#112045]", to: "to-[#0D1A38]",
               badge: "Available Now", badgeBg: "bg-[#2551CC]",
-              emoji: "🌿",
+              icon: "tree-pine" as const, iconColor: "#5D8B4A",
             },
             {
               name: "Arunachal Pradesh",
@@ -1531,7 +2248,7 @@ function HomePage({
               places: "Tawang · Ziro · Bomdila",
               from: "from-[#2A1A0D]", via: "via-[#4A2C14]", to: "to-[#3A2010]",
               badge: "Coming Soon", badgeBg: "bg-[#6B4020]/70",
-              emoji: "🏔",
+              icon: "mountain" as const, iconColor: "#B7791F",
             },
             {
               name: "Sikkim",
@@ -1539,15 +2256,15 @@ function HomePage({
               places: "Gangtok · Lachung · Pelling",
               from: "from-[#182030]", via: "via-[#223348]", to: "to-[#1A2A3C]",
               badge: "Coming Soon", badgeBg: "bg-[#3A5070]/70",
-              emoji: "❄️",
+              icon: "snowflake" as const, iconColor: "#355E9D",
             },
           ].map((dest) => (
             <div
               key={dest.name}
               className={`bg-gradient-to-br ${dest.from} ${dest.via} ${dest.to} rounded-3xl p-8 flex flex-col gap-5 min-h-[280px] relative overflow-hidden`}
             >
-              <div className="absolute bottom-0 right-4 text-[110px] opacity-[0.07] leading-none select-none pointer-events-none">
-                {dest.emoji}
+              <div className="absolute bottom-3 right-5 opacity-[0.08] pointer-events-none select-none">
+                <InlineIcon name={dest.icon} size={110} strokeWidth={0.8} color={dest.iconColor} />
               </div>
               <span className={`${dest.badgeBg} text-white/90 text-[10px] font-semibold px-3 py-1.5 rounded-full self-start tracking-[0.12em] uppercase`}>
                 {dest.badge}
@@ -1589,6 +2306,7 @@ export default function TripPlannerForm() {
     const context: TripContext = {
       days:               tripDays,
       travelers:          form.travelers,
+      origin:             form.origin,
       destination:        form.destination,
       startDateFormatted: format(form.startDate, "d MMM yyyy"),
       endDateFormatted:   form.endDate ? format(form.endDate, "d MMM yyyy") : format(form.startDate, "d MMM yyyy"),
