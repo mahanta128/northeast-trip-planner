@@ -27,12 +27,30 @@ const JourneyMap = dynamic(() => import("./JourneyMap"), {
 /* ─── Constants ───────────────────────────────────────────── */
 
 const DESTINATIONS = [
-  { name: "Meghalaya",          short: "Meghalaya",  icon: "tree-pine", active: true  },
-  { name: "Arunachal Pradesh",  short: "Arunachal",  icon: "mountain",  active: false },
-  { name: "Sikkim",             short: "Sikkim",     icon: "snowflake", active: false },
+  {
+    name: "Meghalaya", short: "Meghalaya", icon: "tree-pine", active: true,
+    subtitle: "Monsoon Serenity",
+    img: "https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=3840&q=100",
+  },
+  {
+    name: "Arunachal Pradesh", short: "Arunachal", icon: "mountain", active: false,
+    subtitle: "Dawn-lit Mountains",
+    img: "https://images.unsplash.com/photo-1672399444836-3f2d667ded8e?auto=format&fit=crop&w=3840&q=100",
+  },
+  {
+    name: "Sikkim", short: "Sikkim", icon: "snowflake", active: false,
+    subtitle: "Mystic Himalayas",
+    img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=3840&q=100",
+  },
 ];
 
-const VIBES   = ["Relaxed", "Adventure", "Photography", "Cafes", "Nature"];
+const VIBES = [
+  { label: "Relaxed",     img: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=800&q=100" },
+  { label: "Adventure",   img: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=800&q=100" },
+  { label: "Photography", img: "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?auto=format&fit=crop&w=800&q=100" },
+  { label: "Cafes",       img: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=800&q=100" },
+  { label: "Nature",      img: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=100" },
+];
 const STEPS   = ["Finding best travel route", "Matching budget", "Building itinerary"];
 
 const BUDGET_LEVELS = [
@@ -82,7 +100,7 @@ interface TripPlan {
   transport: TransportLeg[];
   stay: { base: string; priceRange: string; bestFor: string[] };
   budget: { transport: string; stay: string; food: string; localTravel: string };
-  itinerary: { day: number; location: string; highlights: string[] }[];
+  itinerary: { day: number; location: string; highlights: string[]; localTip?: string; hiddenGem?: string; avoidThis?: string }[];
   realityCheck: string[];
 }
 
@@ -226,47 +244,66 @@ function LoadingState() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#EEF3FB] flex flex-col items-center justify-center gap-8 pt-16 px-4">
-      <div className="relative w-14 h-14">
-        <div className="absolute inset-0 rounded-full border-4 border-[#DDE8F7]" />
-        <div className="absolute inset-0 rounded-full border-4 border-t-[#2551CC] animate-spin" />
+    <div
+      className="min-h-screen flex flex-col items-center justify-center gap-10 pt-16 px-4 relative overflow-hidden"
+      style={{ background: "linear-gradient(165deg, #090401 0%, #130800 35%, #1C0D02 65%, #080300 100%)" }}
+    >
+      {/* Atmospheric glow */}
+      <div className="absolute top-[-10%] right-[-8%] w-[500px] h-[440px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(175,88,12,0.38) 0%, transparent 60%)", filter: "blur(88px)" }} />
+      <div className="absolute bottom-[5%] left-[-10%] w-[420px] h-[360px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(18,55,16,0.44) 0%, transparent 60%)", filter: "blur(80px)" }} />
+
+      {/* Spinner */}
+      <div className="relative w-16 h-16">
+        <div className="absolute inset-0 rounded-full" style={{ border: "2px solid rgba(245,192,80,0.12)" }} />
+        <div className="absolute inset-0 rounded-full animate-spin" style={{ border: "2px solid transparent", borderTopColor: "#F5C060" }} />
         <span className="absolute inset-0 flex items-center justify-center">
-          <InlineIcon name="compass" size={22} strokeWidth={1.5} color="#2551CC" />
+          <InlineIcon name="compass" size={24} strokeWidth={1.4} color="rgba(245,192,80,0.70)" />
         </span>
       </div>
+
+      {/* Copy */}
       <div className="text-center">
-        <p className="text-base font-semibold text-[#1C2333]">Crafting your Rhinotrek journey</p>
-        <p className="text-sm text-[#A8B5C8] mt-1">This takes a few moments</p>
+        <p className="text-[1.05rem] font-semibold text-white/82 tracking-[-0.01em]">
+          Crafting your Rhinotrek journey
+        </p>
+        <p className="text-[0.82rem] text-white/32 mt-1.5 font-light">
+          Reading conditions · Building your dossier
+        </p>
       </div>
-      <div className="flex flex-col gap-3 w-full max-w-xs">
+
+      {/* Steps */}
+      <div className="flex flex-col gap-2.5 w-full max-w-[280px]">
         {STEPS.map((step, i) => {
           const done   = completedSteps.includes(i);
           const active = activeStep === i && !done;
           return (
-            <div
+            <motion.div
               key={step}
-              className={`flex items-center gap-3 px-4 py-3 rounded-2xl border transition-all duration-500 ${
-                done   ? "border-[#DDE8F7] bg-[#EEF3FB]"
-                : active ? "border-[#2551CC]/25 bg-white shadow-sm"
-                : "border-[#DDE8F7] bg-white opacity-40"
-              }`}
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: done ? 1 : active ? 1 : 0.35, x: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.12 }}
+              className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+              style={{
+                background: active ? "rgba(255,255,255,0.06)" : done ? "rgba(245,192,80,0.06)" : "transparent",
+                border: active ? "1px solid rgba(245,192,80,0.18)" : done ? "1px solid rgba(245,192,80,0.10)" : "1px solid rgba(255,255,255,0.05)",
+              }}
             >
               <span className="w-5 h-5 flex items-center justify-center shrink-0">
                 {done ? (
                   <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="8" fill="#DDE8F7" />
-                    <path d="M4.5 8l2.5 2.5 4.5-4.5" stroke="#2551CC" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="8" cy="8" r="8" fill="rgba(245,192,80,0.18)" />
+                    <path d="M4.5 8l2.5 2.5 4.5-4.5" stroke="#F5C060" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 ) : active ? (
-                  <span className="w-3 h-3 rounded-full bg-[#2551CC] animate-pulse" />
+                  <span className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: "#F5C060" }} />
                 ) : (
-                  <span className="w-3 h-3 rounded-full bg-[#DDE8F7]" />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(255,255,255,0.14)" }} />
                 )}
               </span>
-              <span className={`text-sm font-medium ${done ? "text-[#2551CC]" : active ? "text-[#1C2333]" : "text-[#A8B5C8]"}`}>
+              <span className="text-[13px] font-medium" style={{ color: done ? "rgba(245,192,80,0.75)" : active ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.30)" }}>
                 {step}
               </span>
-            </div>
+            </motion.div>
           );
         })}
       </div>
@@ -326,6 +363,20 @@ function classify(item: string): InsightStyle {
     iconBg: "bg-[#DCFCE7]", iconColor: "text-[#16A34A]",
     labelColor: "text-[#16A34A]", textColor: "text-[#14532D]", text,
   };
+}
+
+function getRealityCategory(text: string, isWarn: boolean): string {
+  const t = text.toLowerCase();
+  if (isWarn) {
+    if (/rain|monsoon|weather|flood|storm|cloud|fog|temperature|climate/.test(t)) return "Weather Note";
+    if (/road|landslide|route|drive|highway|pass|closure|vehicle/.test(t))        return "Road Condition";
+    return "Heads Up";
+  }
+  if (/book|reserve|ticket|accommodation|hotel|seat|spot/.test(t)) return "Book Ahead";
+  if (/permit|document|id|inner line|entry|ilp|pass/.test(t))      return "Permit Intel";
+  if (/carry|bring|pack|wear|gear|torch|rain/.test(t))             return "Pack This";
+  if (/food|eat|local|restaurant|cafe|chai|market|tea/.test(t))    return "Local Intel";
+  return "Insider Note";
 }
 
 function parseMidpoint(val: string): number {
@@ -564,6 +615,19 @@ function TerrainSVG({ terrain, far, mid, near }: { terrain: "hills" | "peaks"; f
   );
 }
 
+/* ─── Confidence tier system ─────────────────────────────── */
+
+const CONF_TIERS = [
+  { min: 85, color: "#059669", track: "#DCFCE7", glow: "rgba(5,150,105,0.15)",  label: "Excellent Match" },
+  { min: 70, color: "#2551CC", track: "#EEF3FB", glow: "rgba(37,81,204,0.15)",  label: "Great Match"     },
+  { min: 50, color: "#D97706", track: "#FEF3C7", glow: "rgba(217,119,6,0.15)",  label: "Mixed Tradeoffs" },
+  { min: 0,  color: "#DC2626", track: "#FEE2E2", glow: "rgba(220,38,38,0.15)",  label: "High Tradeoffs"  },
+] as const;
+
+function getConfTier(score: number) {
+  return CONF_TIERS.find(t => score >= t.min) ?? CONF_TIERS[CONF_TIERS.length - 1];
+}
+
 function DestinationHero({
   plan, context, onReset,
 }: {
@@ -574,16 +638,27 @@ function DestinationHero({
   const dest   = context?.destination ?? "Meghalaya";
   const theme  = DEST_HERO_THEMES[dest] ?? DEST_HERO_THEMES["Meghalaya"]!;
   const season = context?.season;
+
+  // Confidence — same formula as TripConfidenceBlock
   const scoreNum     = parseInt(plan.tripFit.score);
-  const scoreDisplay = scoreNum > 10 ? `${scoreNum}%` : `${scoreNum * 10}%`;
-  const scoreColor   = scoreNum >= 8 || scoreNum > 80 ? theme.textAccent : scoreNum >= 6 || scoreNum > 60 ? "#FCD34D" : "#FCA5A5";
+  const rawScore     = scoreNum > 10 ? Math.min(scoreNum, 98) : Math.min(scoreNum * 10, 98);
+  const warningCount = plan.realityCheck.filter(r => r.startsWith("⚠")).length;
+  const confidence   = Math.max(45, rawScore - warningCount * 6);
+  const tier         = getConfTier(confidence);
+
+  const metaItems = [
+    context ? `${context.days} Day${context.days !== 1 ? "s" : ""}` : null,
+    context ? `${context.travelers} Traveller${context.travelers !== 1 ? "s" : ""}` : null,
+    context?.budget?.formatted ?? null,
+    plan.stay.bestFor[0] ?? null,
+  ].filter(Boolean) as string[];
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 1.018 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="relative overflow-hidden rounded-[32px] h-[370px] sm:h-[430px] shadow-[0_20px_70px_rgba(0,0,0,0.30),0_6px_20px_rgba(0,0,0,0.14)]"
+      className="relative overflow-hidden rounded-[32px] h-[580px] sm:h-[660px] shadow-[0_24px_80px_rgba(0,0,0,0.36),0_6px_20px_rgba(0,0,0,0.16)]"
     >
       {/* 1. Base gradient */}
       <div className="absolute inset-0" style={{ background: theme.gradient }} />
@@ -598,21 +673,21 @@ function DestinationHero({
         style={{ background: theme.orb2, filter: "blur(65px)" }}
       />
 
-      {/* 3. Drifting mist (animated) */}
+      {/* 3. Drifting mist */}
       <motion.div
-        className="absolute left-[8%] top-[22%] w-[52%] h-[46%] pointer-events-none"
+        className="absolute left-[8%] top-[14%] w-[52%] h-[46%] pointer-events-none"
         style={{ background: theme.mistColor, filter: "blur(58px)" }}
         animate={{ x: [0, 24, 0], opacity: [0.65, 0.95, 0.65] }}
         transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute right-[6%] top-[38%] w-[38%] h-[38%] pointer-events-none"
+        className="absolute right-[6%] top-[30%] w-[38%] h-[38%] pointer-events-none"
         style={{ background: theme.mistColor, filter: "blur(46px)", opacity: 0.45 }}
         animate={{ x: [0, -17, 0], opacity: [0.35, 0.60, 0.35] }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 3.5 }}
       />
 
-      {/* 4. Film grain texture */}
+      {/* 4. Film grain */}
       <div
         className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-[0.032]"
         style={{
@@ -624,28 +699,28 @@ function DestinationHero({
       {/* 5. Terrain silhouette */}
       <TerrainSVG terrain={theme.terrain} far={theme.terrainFar} mid={theme.terrainMid} near={theme.terrainNear} />
 
-      {/* 6. Bottom text-readability gradient */}
+      {/* 6. Deep gradient — taller content area needs more coverage */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: `linear-gradient(to top, ${theme.overlayBottom} 0%, ${theme.overlayBottom.replace("0.97", "0.72")} 28%, ${theme.overlayBottom.replace("0.97", "0.18")} 56%, transparent 80%)` }}
+        style={{ background: `linear-gradient(to top, ${theme.overlayBottom} 0%, ${theme.overlayBottom.replace("0.97", "0.96")} 22%, ${theme.overlayBottom.replace("0.97", "0.84")} 42%, ${theme.overlayBottom.replace("0.97", "0.44")} 62%, ${theme.overlayBottom.replace("0.97", "0.10")} 78%, transparent 92%)` }}
       />
 
       {/* 7. Content */}
       <div className="relative h-full flex flex-col justify-between p-6 sm:p-8">
 
-        {/* Top: destination identity + plan-again */}
+        {/* ── Top bar: region + season badge · plan-again ── */}
         <div className="flex items-start justify-between">
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.20, duration: 0.50 }}
+            transition={{ delay: 0.18, duration: 0.48 }}
             className="flex flex-col gap-1"
           >
-            <p className="text-[9px] font-bold tracking-[0.24em] uppercase" style={{ color: `${theme.textAccent}60` }}>
+            <p className="text-[9px] font-bold tracking-[0.26em] uppercase" style={{ color: `${theme.textAccent}55` }}>
               Northeast India
             </p>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-white/92 text-[13px] font-bold tracking-tight">{dest}</span>
+              <span className="text-white/85 text-[13px] font-bold tracking-tight">{dest}</span>
               {season && (
                 <span
                   className="text-[9px] font-bold px-2 py-0.5 rounded-full leading-none"
@@ -659,103 +734,141 @@ function DestinationHero({
 
           <button
             onClick={onReset}
-            className="print-hide shrink-0 text-[11px] text-white/30 border border-white/10 rounded-full px-3.5 py-1.5 hover:bg-white/8 transition-all font-medium backdrop-blur-sm"
+            className="print-hide shrink-0 text-[11px] text-white/28 border border-white/10 rounded-full px-3.5 py-1.5 hover:bg-white/8 transition-all font-medium backdrop-blur-sm"
           >
-            <span className="inline-flex items-center gap-1.5"><InlineIcon name="arrow-left" size={11} strokeWidth={2} color="rgba(255,255,255,0.30)" />Plan Again</span>
+            <span className="inline-flex items-center gap-1.5">
+              <InlineIcon name="arrow-left" size={11} strokeWidth={2} color="rgba(255,255,255,0.28)" />
+              Plan Again
+            </span>
           </button>
         </div>
 
-        {/* Bottom: title + highlights + season/score */}
-        <div className="flex flex-col gap-3.5">
+        {/* ── Bottom dossier content ── */}
+        <div className="flex flex-col gap-5">
 
-          {/* Tagline, title, meta */}
+          {/* Trip title block */}
           <motion.div
-            initial={{ opacity: 0, y: 22 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.10, duration: 0.68, ease: [0.25, 0.46, 0.45, 0.94] }}
+            transition={{ delay: 0.08, duration: 0.72, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
-            <p className="text-[9px] font-bold tracking-[0.22em] uppercase mb-2" style={{ color: `${theme.textAccent}65` }}>
+            <p className="text-[9px] font-bold tracking-[0.24em] uppercase mb-2.5" style={{ color: `${theme.textAccent}60` }}>
               {theme.tagline}
             </p>
-            <h1 className="text-[1.90rem] sm:text-[2.20rem] font-bold text-white leading-[1.13] tracking-[-0.01em]">
+            <h1 className="text-[2.05rem] sm:text-[2.55rem] font-bold text-white leading-[1.09] tracking-[-0.018em]">
               {plan.tripTitle}
             </h1>
-            {context && (
-              <p className="text-white/36 text-[12px] mt-1.5 font-medium">
-                {context.startDateFormatted} – {context.endDateFormatted}
-                {" · "}{context.travelers} Traveller{context.travelers !== 1 ? "s" : ""}
-                {" · "}{context.days} Day{context.days !== 1 ? "s" : ""}
-              </p>
-            )}
           </motion.div>
 
-          {/* Destination highlights */}
+          {/* Meta strip */}
           <motion.div
-            className="flex flex-wrap gap-1.5"
-            initial={{ opacity: 0, y: 13 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28, duration: 0.52 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.26, duration: 0.50 }}
+            className="flex items-center flex-wrap"
           >
-            {theme.highlights.map((h) => (
-              <span
-                key={h}
-                className="text-[10px] font-medium px-2.5 py-1 rounded-full backdrop-blur-[6px]"
-                style={{
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.60)",
-                }}
-              >
-                {h}
+            {metaItems.map((item, i) => (
+              <span key={i} className="flex items-center">
+                <span className="text-[12.5px] font-medium" style={{ color: "rgba(255,255,255,0.52)" }}>{item}</span>
+                {i < metaItems.length - 1 && (
+                  <span className="mx-3 text-[10px]" style={{ color: "rgba(255,255,255,0.16)" }}>·</span>
+                )}
               </span>
             ))}
           </motion.div>
 
-          {/* Season weather + Trip match score */}
+          {/* ── Separator ── */}
           <motion.div
-            className="flex items-end justify-between"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.44, duration: 0.48 }}
+            initial={{ scaleX: 0, opacity: 0 }}
+            animate={{ scaleX: 1, opacity: 1 }}
+            transition={{ delay: 0.34, duration: 0.55, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="origin-left h-px w-full"
+            style={{ background: "rgba(255,255,255,0.10)" }}
+          />
+
+          {/* ── Confidence row ── */}
+          <motion.div
+            className="flex items-start gap-6"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.38, duration: 0.55 }}
           >
-            {season ? (
-              <p className="text-[11px] font-medium leading-snug max-w-[58%]" style={{ color: "rgba(255,255,255,0.38)" }}>
-                {season.weather}
-              </p>
-            ) : <div />}
-            <div className="flex flex-col items-end gap-0.5 shrink-0">
-              <motion.span
-                initial={{ scale: 0.68, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.36, duration: 0.46, ease: "easeOut" }}
-                className="text-[2.1rem] font-bold leading-none tabular-nums"
-                style={{ color: scoreColor }}
+
+            {/* Score + label */}
+            <div className="flex flex-col gap-0.5 shrink-0 min-w-[100px]">
+              <span
+                className="text-[8.5px] uppercase tracking-[0.22em] font-bold mb-0.5"
+                style={{ color: "rgba(255,255,255,0.24)" }}
               >
-                {scoreDisplay}
-              </motion.span>
-              <span className="text-[8px] uppercase tracking-[0.20em] font-bold" style={{ color: "rgba(255,255,255,0.26)" }}>
-                Trip Match
+                Rhinotrek Confidence
+              </span>
+              <div className="flex items-baseline gap-1">
+                <motion.span
+                  initial={{ scale: 0.70, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.44, duration: 0.52, ease: "easeOut" }}
+                  className="text-[3.4rem] font-extrabold leading-none tabular-nums tracking-[-0.04em]"
+                  style={{ color: tier.color }}
+                >
+                  {confidence}
+                </motion.span>
+                <span
+                  className="text-[1.4rem] font-bold leading-none mb-1"
+                  style={{ color: tier.color, opacity: 0.55 }}
+                >
+                  %
+                </span>
+              </div>
+              <span
+                className="text-[13.5px] font-bold leading-none"
+                style={{ color: tier.color }}
+              >
+                {tier.label}
               </span>
             </div>
+
+            {/* Vertical divider */}
+            <div
+              className="self-stretch w-px shrink-0 mt-1"
+              style={{ background: "rgba(255,255,255,0.10)" }}
+            />
+
+            {/* Reasons */}
+            <div className="flex flex-col gap-2.5 flex-1 pt-7">
+              {plan.tripFit.reasons.map((reason, i) => {
+                const isOk = reason.startsWith("✓");
+                const text = reason.replace(/^[✓⚠]\s*/, "");
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: 14 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.46 + i * 0.09, duration: 0.40, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    className="flex items-start gap-2.5"
+                  >
+                    <span
+                      className="text-[11px] leading-none mt-[3px] shrink-0 font-bold"
+                      style={{ color: isOk ? theme.textAccent : "#FCD34D" }}
+                    >
+                      {isOk ? "✓" : "⚠"}
+                    </span>
+                    <span
+                      className="text-[12.5px] font-medium leading-snug"
+                      style={{ color: "rgba(255,255,255,0.60)" }}
+                    >
+                      {text}
+                    </span>
+                  </motion.div>
+                );
+              })}
+            </div>
+
           </motion.div>
 
         </div>
       </div>
     </motion.div>
   );
-}
-
-/* ─── Confidence tier system ─────────────────────────────── */
-
-const CONF_TIERS = [
-  { min: 85, color: "#059669", track: "#DCFCE7", glow: "rgba(5,150,105,0.15)",  label: "Excellent Match" },
-  { min: 70, color: "#2551CC", track: "#EEF3FB", glow: "rgba(37,81,204,0.15)",  label: "Great Match"     },
-  { min: 50, color: "#D97706", track: "#FEF3C7", glow: "rgba(217,119,6,0.15)",  label: "Mixed Tradeoffs" },
-  { min: 0,  color: "#DC2626", track: "#FEE2E2", glow: "rgba(220,38,38,0.15)",  label: "High Tradeoffs"  },
-] as const;
-
-function getConfTier(score: number) {
-  return CONF_TIERS.find(t => score >= t.min) ?? CONF_TIERS[CONF_TIERS.length - 1];
 }
 
 /* ─── Trip Confidence Block ───────────────────────────────── */
@@ -1080,8 +1193,121 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
       />
       <div className="relative z-10 max-w-2xl mx-auto flex flex-col gap-6">
 
+        {/* ── Dossier eyebrow ── */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="flex items-center justify-between px-1 pt-1"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: mood.accentColor }} />
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: mood.accentColor }}>
+              Your Journey Dossier
+            </span>
+          </div>
+          <span className="text-[10px] text-[#A8B5C8] font-medium tabular-nums">
+            {context?.destination ?? "Northeast India"}{context?.days ? ` · ${context.days} day${context.days !== 1 ? "s" : ""}` : ""}
+          </span>
+        </motion.div>
+
         {/* ── Cinematic Destination Hero ── */}
         <DestinationHero plan={plan} context={context} onReset={onReset} />
+
+        {/* ── Field Notes ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.52, delay: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="rounded-[28px] overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.05),0_1px_4px_rgba(0,0,0,0.04)]"
+          style={{ background: "white", border: `1px solid ${mood.cardBorder}` }}
+        >
+
+          {/* Card header */}
+          <div
+            className="px-7 pt-7 pb-6 flex items-start gap-4"
+            style={{ borderBottom: `1px solid ${mood.cardBorder}` }}
+          >
+            <PremiumIcon
+              name="compass"
+              size={18} containerSize={44} radius={15} strokeWidth={1.6}
+              bg={mood.accentLight}
+              border={mood.cardBorder}
+              shadow={`0 1px 6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.80)`}
+              color={mood.accentColor}
+            />
+            <div>
+              <p
+                className="text-[9.5px] font-bold uppercase tracking-[0.22em] mb-1.5"
+                style={{ color: mood.accentColor }}
+              >
+                Field Notes
+              </p>
+              <h2 className="text-[1.2rem] font-bold text-[#1C2333] leading-tight tracking-tight">
+                Before You Go
+              </h2>
+              <p className="text-[13px] text-[#9CA3AF] mt-0.5 leading-snug">
+                Written from experience, not travel forums
+              </p>
+            </div>
+          </div>
+
+          {/* Insights */}
+          <div className="flex flex-col">
+            {plan.realityCheck.map((item, i) => {
+              const isWarn   = item.startsWith("⚠");
+              const text     = item.replace(/^[✓⚠]\s*/, "").trim();
+              const category = getRealityCategory(text, isWarn);
+              const isLast   = i === plan.realityCheck.length - 1;
+
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-16px" }}
+                  transition={{ duration: 0.34, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.05 * i }}
+                  className="flex items-start gap-5 px-7 py-5 relative"
+                  style={!isLast ? { borderBottom: `1px solid ${mood.cardBorder}` } : {}}
+                >
+
+                  {/* Left: accent line + number */}
+                  <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
+                    <div
+                      className="w-[3px] h-8 rounded-full"
+                      style={{
+                        background: isWarn
+                          ? "linear-gradient(to bottom, #F59E0B, #FDE68A)"
+                          : `linear-gradient(to bottom, ${mood.accentColor}, ${mood.accentColor}44)`,
+                      }}
+                    />
+                    <span
+                      className="text-[10px] font-bold tabular-nums leading-none"
+                      style={{ color: isWarn ? "#F59E0B40" : `${mood.accentColor}30` }}
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+
+                  {/* Right: category + tip */}
+                  <div className="flex flex-col gap-1.5 flex-1 min-w-0 pt-px">
+                    <span
+                      className="text-[9.5px] font-bold uppercase tracking-[0.18em] leading-none"
+                      style={{ color: isWarn ? "#D97706" : mood.accentColor }}
+                    >
+                      {category}
+                    </span>
+                    <p className="text-[15px] text-[#1C2333] leading-relaxed">
+                      {text}
+                    </p>
+                  </div>
+
+                </motion.div>
+              );
+            })}
+          </div>
+
+        </motion.div>
 
         {/* ── Trip Confidence ── */}
         <TripConfidenceBlock
@@ -1090,50 +1316,6 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
           pace={getPace()}
           bestFor={getBestFor()}
         />
-
-        {/* ── Local Reality Layer ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          whileHover={{ y: -2, boxShadow: "0 8px 28px rgba(37,81,204,0.09), 0 1px 4px rgba(37,81,204,0.04)" }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="bg-white rounded-3xl border shadow-[0_1px_4px_rgba(37,81,204,0.04)] p-7 transition-colors duration-500"
-          style={{ borderColor: mood.cardBorder }}
-        >
-
-          {/* Header */}
-          <div className="mb-6">
-            <h2 className="text-[1.25rem] font-bold text-[#1C2333] leading-tight tracking-tight">Local Reality Layer</h2>
-            <p className="text-[13px] text-[#9CA3AF] mt-1.5 leading-snug">What you actually need to know before you go</p>
-          </div>
-
-          {/* Insight cards */}
-          <div className="flex flex-col gap-2.5">
-            {plan.realityCheck.map((item, i) => {
-              const { icon, label, bg, border, iconBg, iconColor, labelColor, textColor, text } = classify(item);
-              return (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -8 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true, margin: "-20px" }}
-                  transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.06 * i }}
-                  className={`flex gap-3.5 items-start px-4 py-4 rounded-2xl border ${bg} ${border}`}
-                >
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
-                    <InlineIcon name={icon} size={15} strokeWidth={1.75} />
-                  </div>
-                  <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                    <span className={`text-[11px] font-medium ${labelColor}`}>{label}</span>
-                    <p className={`text-[0.9375rem] leading-relaxed mt-0.5 ${textColor}`}>{text}</p>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-
-        </motion.div>
 
         {/* Travel Intelligence — 3 premium cards */}
         {context?.season && (() => {
@@ -1596,10 +1778,11 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                   className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-[#FAFBFF] transition-colors duration-150 print-hide"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-colors duration-200 ${
+                    <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-colors duration-200 ${
                       isOpen ? "bg-[#2551CC] text-white" : "bg-[#EEF3FB] text-[#2551CC]"
                     }`}>
-                      {day.day}
+                      <span className={`text-[8px] font-bold leading-none uppercase tracking-[0.08em] ${isOpen ? "text-white/60" : "text-[#2551CC]/50"}`}>Day</span>
+                      <span className="text-sm font-extrabold leading-none">{day.day}</span>
                     </div>
                     <div className="flex flex-col gap-1 min-w-0">
                       <p className="text-[0.9375rem] font-bold text-[#1C2333] leading-tight truncate">{day.location}</p>
@@ -1658,6 +1841,30 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                           <div className="flex items-start gap-2.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-3.5 py-3">
                             <InlineIcon name="alert" size={14} strokeWidth={1.75} color="#B7791F" className="shrink-0 mt-px" />
                             <p className="text-[11px] text-[#92400E] leading-snug">{note}</p>
+                          </div>
+                        )}
+
+                        {/* Curated intel row */}
+                        {(day.localTip || day.hiddenGem || day.avoidThis) && (
+                          <div className="flex flex-col gap-2 pt-1">
+                            {day.localTip && (
+                              <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-2.5" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.16)" }}>
+                                <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] mt-px" style={{ color: "#15803D" }}>Local Tip</span>
+                                <p className="text-[11.5px] text-[#1C2333] leading-snug">{day.localTip}</p>
+                              </div>
+                            )}
+                            {day.hiddenGem && (
+                              <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-2.5" style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.16)" }}>
+                                <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] mt-px" style={{ color: "#4F46E5" }}>Hidden Gem</span>
+                                <p className="text-[11.5px] text-[#1C2333] leading-snug">{day.hiddenGem}</p>
+                              </div>
+                            )}
+                            {day.avoidThis && (
+                              <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-2.5" style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.14)" }}>
+                                <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] mt-px" style={{ color: "#B91C1C" }}>Avoid This</span>
+                                <p className="text-[11.5px] text-[#1C2333] leading-snug">{day.avoidThis}</p>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1857,6 +2064,7 @@ function HomePage({
   error: string;
 }) {
   const mood = MOOD_THEMES[form.destination] ?? MOOD_THEMES["Meghalaya"]!;
+  const [destIdx, setDestIdx] = useState(0);
 
   const tripDays = form.startDate && form.endDate
     ? differenceInCalendarDays(form.endDate, form.startDate) + 1
@@ -1880,105 +2088,90 @@ function HomePage({
     <div>
 
       {/* ── Cinematic Hero ── */}
-      <section className="relative overflow-hidden min-h-[100vh] flex flex-col">
+      <section className="relative overflow-hidden">
 
         {/* ── Atmospheric background layers ── */}
 
-        {/* Base: deep Meghalaya forest night */}
+        {/* Base: deep warm night */}
         <div
           className="absolute inset-0"
-          style={{ background: "linear-gradient(175deg, #020E05 0%, #030F08 28%, #041512 58%, #020C07 100%)" }}
+          style={{ background: "linear-gradient(175deg, #090401 0%, #130800 28%, #1C0D02 58%, #080300 100%)" }}
         />
 
-        {/* Primary forest atmosphere — large deep-green orb */}
+        {/* Primary amber atmosphere — large warm orb */}
         <div
           className="absolute top-[-14%] left-[4%] w-[960px] h-[760px] rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, rgba(14,72,32,0.70) 0%, transparent 58%)", filter: "blur(100px)" }}
+          style={{ background: "radial-gradient(circle, rgba(175,88,12,0.65) 0%, transparent 58%)", filter: "blur(100px)" }}
         />
 
-        {/* Teal monsoon cloud mass — upper right */}
+        {/* Warm amber cloud — upper right */}
         <div
           className="absolute top-[0%] right-[-10%] w-[680px] h-[560px] rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, rgba(8,58,62,0.54) 0%, transparent 62%)", filter: "blur(88px)" }}
+          style={{ background: "radial-gradient(circle, rgba(145,62,8,0.45) 0%, transparent 62%)", filter: "blur(88px)" }}
         />
 
-        {/* Deep blue rainstorm atmosphere — left */}
+        {/* Warm reddish-brown — left depth */}
         <div
           className="absolute top-[18%] left-[-14%] w-[540px] h-[440px] rounded-full pointer-events-none"
-          style={{ background: "radial-gradient(circle, rgba(10,42,80,0.46) 0%, transparent 65%)", filter: "blur(92px)" }}
+          style={{ background: "radial-gradient(circle, rgba(100,42,8,0.40) 0%, transparent 65%)", filter: "blur(92px)" }}
         />
 
-        {/* Valley mist band — mid vertical */}
+        {/* Warm mist band — mid vertical */}
         <div
           className="absolute top-[44%] inset-x-0 h-[300px] pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 78% 100% at 50% 50%, rgba(28,88,48,0.22) 0%, transparent 100%)", filter: "blur(48px)" }}
+          style={{ background: "radial-gradient(ellipse 78% 100% at 50% 50%, rgba(130,58,10,0.20) 0%, transparent 100%)", filter: "blur(48px)" }}
         />
 
-        {/* Animated slow-drifting mist — layer 1 */}
+        {/* Animated warm mist — layer 1 */}
         <motion.div
           className="absolute bottom-[20%] inset-x-0 h-[220px] pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 82% 100% at 32% 78%, rgba(16,70,36,0.28) 0%, transparent 72%)" }}
+          style={{ background: "radial-gradient(ellipse 82% 100% at 32% 78%, rgba(155,72,12,0.25) 0%, transparent 72%)" }}
           animate={{ x: [0, 32, 0], opacity: [0.22, 0.32, 0.22] }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
         />
 
-        {/* Animated slow-drifting mist — layer 2 counter-drift */}
+        {/* Animated warm mist — layer 2 counter-drift */}
         <motion.div
           className="absolute bottom-[28%] inset-x-0 h-[190px] pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 68% 100% at 62% 68%, rgba(10,54,46,0.22) 0%, transparent 72%)" }}
+          style={{ background: "radial-gradient(ellipse 68% 100% at 62% 68%, rgba(120,52,8,0.20) 0%, transparent 72%)" }}
           animate={{ x: [0, -24, 0], opacity: [0.16, 0.26, 0.16] }}
           transition={{ duration: 23, repeat: Infinity, ease: "easeInOut", delay: 5 }}
         />
 
-        {/* Soft cloud pulse — upper center */}
+        {/* Warm cloud pulse */}
         <motion.div
           className="absolute top-[6%] inset-x-0 h-[170px] pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 58% 100% at 50% 0%, rgba(16,50,68,0.16) 0%, transparent 100%)" }}
+          style={{ background: "radial-gradient(ellipse 58% 100% at 50% 0%, rgba(100,45,8,0.14) 0%, transparent 100%)" }}
           animate={{ opacity: [0.10, 0.20, 0.10] }}
           transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 2 }}
         />
 
-        {/* SVG Terrain — multi-layer misty hills, waterfall streaks, winding road */}
+        {/* SVG Terrain — warm brown tones */}
         <svg
           className="absolute bottom-0 left-0 w-full"
           viewBox="0 0 1400 320"
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          {/* Far distant mountain ridgeline */}
           <path
             d="M0,172 L52,132 L108,155 L168,117 L232,140 L308,106 L386,126 L464,100 L544,120 L624,96 L704,113 L784,104 L864,115 L944,107 L1024,117 L1104,106 L1184,114 L1260,104 L1352,109 L1400,106 L1400,320 L0,320 Z"
-            fill="rgba(12,44,22,0.54)"
+            fill="rgba(44,22,8,0.54)"
           />
-          {/* Mid rolling hills */}
           <path
             d="M0,202 Q116,170 236,186 Q356,156 476,175 Q596,161 716,179 Q836,166 956,181 Q1076,169 1196,179 Q1300,175 1400,181 L1400,320 L0,320 Z"
-            fill="rgba(8,30,14,0.74)"
+            fill="rgba(28,12,4,0.74)"
           />
-          {/* Near foreground hills */}
           <path
             d="M0,246 Q145,208 292,228 Q448,202 598,222 Q745,209 895,227 Q1048,214 1198,229 Q1302,223 1400,231 L1400,320 L0,320 Z"
-            fill="rgba(5,20,9,0.89)"
+            fill="rgba(16,8,2,0.89)"
           />
-          {/* Waterfall streak A */}
-          <path
-            d="M392,96 Q394,148 393,186 Q392,212 390,248"
-            stroke="rgba(160,215,235,0.11)" strokeWidth="2.5" fill="none" strokeLinecap="round"
-          />
-          {/* Waterfall streak B — parallel, faint */}
-          <path
-            d="M398,102 Q400,154 399,192 Q398,218 396,252"
-            stroke="rgba(160,215,235,0.07)" strokeWidth="1.5" fill="none" strokeLinecap="round"
-          />
-          {/* Winding mountain road — barely visible */}
           <path
             d="M-50,312 Q180,298 338,306 Q498,308 618,299 Q738,290 876,300 Q1018,305 1158,296 Q1278,292 1452,300"
-            stroke="rgba(255,255,255,0.046)" strokeWidth="2.5" fill="none" strokeLinecap="round"
+            stroke="rgba(255,200,120,0.04)" strokeWidth="2.5" fill="none" strokeLinecap="round"
           />
-          {/* Valley floor */}
           <path
             d="M0,287 Q350,273 700,279 Q1050,274 1400,281 L1400,320 L0,320 Z"
-            fill="rgba(3,11,5,0.97)"
+            fill="rgba(8,4,1,0.97)"
           />
         </svg>
 
@@ -1995,7 +2188,7 @@ function HomePage({
           <rect width="100%" height="100%" filter="url(#hero-noise)" />
         </svg>
 
-        {/* Gradient overlay — text readability */}
+        {/* Text readability gradient */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.20) 0%, rgba(0,0,0,0.08) 22%, rgba(0,0,0,0.36) 58%, rgba(0,0,0,0.75) 84%, rgba(0,0,0,0.92) 100%)" }}
@@ -2007,275 +2200,495 @@ function HomePage({
           style={{ background: "radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.30) 100%)" }}
         />
 
-        {/* ── Hero content ── */}
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-5 sm:px-8 pt-28 pb-24 md:pt-36 md:pb-28">
+        {/* ── Main Content ── */}
+        <div className="relative z-10 w-full px-5 sm:px-8 pt-28 pb-16 md:pt-32 md:pb-20">
 
-          {/* Top badge */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="mb-10 sm:mb-14"
-          >
-            <div className="inline-flex items-center gap-2.5 bg-white/7 border border-white/12 text-white/52 text-[10px] font-semibold px-5 py-2.5 rounded-full tracking-[0.22em] uppercase backdrop-blur-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#6DFFB0] shrink-0" />
-              RHINOTREK · NORTHEAST INDIA
-            </div>
-          </motion.div>
+          {/* ── Centered Hero Copy ── */}
+          <div className="max-w-5xl mx-auto text-center mb-14 sm:mb-16">
 
-          {/* Editorial headline */}
-          <motion.h1
-            initial={{ opacity: 0, y: 26 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.88, delay: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="text-[2.75rem] sm:text-[4.25rem] md:text-[5.75rem] font-bold text-white leading-[1.02] tracking-[-0.025em] max-w-5xl mb-7"
-          >
-            Plan Northeast India<br />
-            <span className="bg-gradient-to-r from-[#7CCC52] via-[#A8E060] to-[#5DB842] bg-clip-text text-transparent">
-              Like Someone Local
-            </span>
-          </motion.h1>
-
-          {/* Supporting copy */}
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.78, delay: 0.34, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="text-[1rem] sm:text-[1.1rem] text-white/46 max-w-xl leading-relaxed font-light mb-12 sm:mb-14"
-          >
-            Reality-checked trips with routes, weather, permits,<br className="hidden sm:block" /> budgets and local intelligence.
-          </motion.p>
-
-          {/* Trust strip */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.68, delay: 0.50, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="flex items-center justify-center gap-5 sm:gap-8 flex-wrap"
-          >
-            {(["Route Verified", "Weather Aware", "Budget Matched", "Local Intelligence"] as const).map((t) => (
-              <span key={t} className="flex items-center gap-2 text-white/48 text-[11px] sm:text-xs font-medium">
-                <InlineIcon name="check2" size={10} strokeWidth={2.5} color="#6DFFB0" />
-                {t}
-              </span>
-            ))}
-          </motion.div>
-
-        </div>
-
-      </section>
-
-      {/* ── Floating Planner Card ── */}
-      <div id="planner" className="relative z-10 max-w-3xl mx-auto px-4 -mt-20 sm:-mt-28 md:-mt-36 scroll-mt-20 pb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 36 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.78, delay: 0.72, ease: [0.25, 0.46, 0.45, 0.94] }}
-        >
-        <form
-          onSubmit={onSubmit}
-          noValidate
-          className="rounded-[32px] border border-white/38 p-8 md:p-10"
-          style={{
-            background: "rgba(255,255,255,0.82)",
-            backdropFilter: "blur(36px)",
-            WebkitBackdropFilter: "blur(36px)",
-            boxShadow: `${mood.formGlow}, inset 0 1px 0 rgba(255,255,255,0.92)`,
-            transition: "box-shadow 0.6s ease",
-          } as React.CSSProperties}
-        >
-          <p className="text-[10px] font-bold text-[#6B7280]/52 uppercase tracking-[0.16em] mb-9">Plan your trip</p>
-
-          {/* Row 1: From + Destination */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-9 mb-9">
-
-            <div className="flex flex-col gap-2.5">
-              <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">From</label>
-              <input
-                type="text"
-                placeholder="Your city — Delhi, Bangalore, Kolkata..."
-                value={form.origin}
-                onChange={(e) => setForm({ ...form, origin: e.target.value })}
-                className="rounded-2xl border border-[#DDE8F7] bg-white/70 px-5 py-4 text-sm text-[#1C2333] placeholder-[#A8B5C8] outline-none focus:border-[#2551CC] focus:ring-2 focus:ring-[#2551CC]/10 transition"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-baseline gap-3">
-                <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Destination</label>
-                <motion.span
-                  key={mood.moodLabel}
-                  initial={{ opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="text-[9px] font-semibold uppercase tracking-[0.16em]"
-                  style={{ color: mood.accentColor }}
-                >
-                  {mood.moodLabel}
-                </motion.span>
-              </div>
-              <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1 pt-3">
-                {DESTINATIONS.map((d) => (
-                  <div key={d.name} className="relative flex-shrink-0">
-                    <Pill selected={form.destination === d.name} onClick={() => setForm({ ...form, destination: d.name })} disabled={!d.active} accentColor={mood.accentColor}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <InlineIcon name={d.icon} size={12} strokeWidth={1.75} color={form.destination === d.name ? "white" : mood.accentColor} />
-                        {d.short}
-                      </span>
-                    </Pill>
-                    {!d.active && (
-                      <span className="absolute -top-2 -right-1.5 text-[9px] font-bold bg-[#DDE8F7] text-[#6B7280] px-1.5 py-0.5 rounded-full leading-none">Soon</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-
-          {/* Row 2: Travel Dates */}
-          <div className="mb-9">
-            <div className="flex flex-col gap-2.5">
-              <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Travel Dates</label>
-              <DateRangePicker
-                value={form.startDate ? { from: form.startDate, to: form.endDate } : undefined}
-                onChange={(range: DateRange | undefined) =>
-                  setForm((prev) => ({ ...prev, startDate: range?.from, endDate: range?.to }))
-                }
-              />
-            </div>
-          </div>
-
-          {/* Season Snippet */}
-          {form.startDate && (
-            <div className="mb-9">
-              <SeasonSnippet
-                destination={form.destination}
-                startDate={form.startDate}
-                moodBorder={mood.cardBorder}
-                moodBg={`${mood.accentLight}99`}
-              />
-            </div>
-          )}
-
-          <Divider />
-
-          {/* Estimate Your Budget */}
-          <div className="mb-9">
-            <TripBudgetEstimator
-              travelers={form.travelers}
-              days={tripDays}
-              onTravelersChange={(n) => setForm({ ...form, travelers: n })}
-              selectedBudgetId={form.budget.toLowerCase()}
-              onBudgetSelect={(id) =>
-                setForm({ ...form, budget: id.charAt(0).toUpperCase() + id.slice(1) })
-              }
-            />
-          </div>
-
-          <Divider />
-
-          {/* Travel Mood */}
-          <div className="flex flex-col gap-3">
-            <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Travel Mood</label>
-            <div className="flex flex-wrap gap-2">
-              {VIBES.map((v) => (
-                <Pill key={v} selected={form.vibes.includes(v)} onClick={() => toggleVibe(v)}>{v}</Pill>
-              ))}
-            </div>
-          </div>
-
-          {error && <p className="mt-5 text-sm text-red-500">{error}</p>}
-
-          <button
-            type="submit"
-            className={`mt-10 w-full rounded-2xl bg-gradient-to-r from-[#2551CC] to-[#1C306E] text-white py-4 text-base font-semibold hover:opacity-95 active:scale-[0.99] transition-all tracking-wide ${isReady ? "cta-ready" : "shadow-sm opacity-80"}`}
-          >
-            Generate My Trip →
-          </button>
-
-        </form>
-        </motion.div>
-      </div>
-
-      {/* ── How It Works ── */}
-      <section id="how-it-works" className="max-w-5xl mx-auto px-6 pt-28 pb-20 scroll-mt-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16">
-          {[
-            {
-              num: "01",
-              label: "Realistic Routes",
-              desc: "No impossible itineraries. Every route follows real Northeast travel patterns — road conditions, shared transport and actual journey times.",
-            },
-            {
-              num: "02",
-              label: "Local Intelligence",
-              desc: "Seasonal caveats, permit requirements and road closures are baked into every plan — not mentioned as an afterthought.",
-            },
-            {
-              num: "03",
-              label: "Budget Transparency",
-              desc: "Trips matched to what you actually want to spend, with honest per-person estimates across transport, stays and food.",
-            },
-          ].map(({ num, label, desc }) => (
-            <div key={label} className="flex flex-col gap-4">
-              <span className="text-[11px] font-bold text-[#2551CC]/40 tracking-[0.22em] uppercase">{num}</span>
-              <div className="w-6 h-px bg-[#DDE8F7]" />
-              <h3 className="text-[15px] font-bold text-[#1C2333] leading-snug">{label}</h3>
-              <p className="text-sm text-[#6B7280] leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Destinations ── */}
-      <section id="destinations" className="max-w-6xl mx-auto px-4 pb-24 scroll-mt-20">
-        <h2 className="text-2xl font-bold text-[#1C2333] mb-2">Destinations</h2>
-        <p className="text-sm text-[#A8B5C8] mb-8">By Rhinotrek — Northeast India, planned properly.</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {[
-            {
-              name: "Meghalaya",
-              tagline: "Living root bridges. Monsoon clouds. Clean air.",
-              places: "Shillong · Cherrapunji · Dawki",
-              from: "from-[#0C1730]", via: "via-[#112045]", to: "to-[#0D1A38]",
-              badge: "Available Now", badgeBg: "bg-[#2551CC]",
-              icon: "tree-pine" as const, iconColor: "#5D8B4A",
-            },
-            {
-              name: "Arunachal Pradesh",
-              tagline: "Tawang monastery. Sunrise at Sela Pass.",
-              places: "Tawang · Ziro · Bomdila",
-              from: "from-[#2A1A0D]", via: "via-[#4A2C14]", to: "to-[#3A2010]",
-              badge: "Coming Soon", badgeBg: "bg-[#6B4020]/70",
-              icon: "mountain" as const, iconColor: "#B7791F",
-            },
-            {
-              name: "Sikkim",
-              tagline: "Himalayan views. Tsomgo Lake. Quiet mountain towns.",
-              places: "Gangtok · Lachung · Pelling",
-              from: "from-[#182030]", via: "via-[#223348]", to: "to-[#1A2A3C]",
-              badge: "Coming Soon", badgeBg: "bg-[#3A5070]/70",
-              icon: "snowflake" as const, iconColor: "#355E9D",
-            },
-          ].map((dest) => (
-            <div
-              key={dest.name}
-              className={`bg-gradient-to-br ${dest.from} ${dest.via} ${dest.to} rounded-3xl p-8 flex flex-col gap-5 min-h-[280px] relative overflow-hidden`}
+            {/* Badge */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="mb-8"
             >
-              <div className="absolute bottom-3 right-5 opacity-[0.08] pointer-events-none select-none">
-                <InlineIcon name={dest.icon} size={110} strokeWidth={0.8} color={dest.iconColor} />
+              <div className="inline-flex items-center gap-2.5 bg-white/7 border border-white/12 text-white/52 text-[10px] font-semibold px-5 py-2.5 rounded-full tracking-[0.22em] uppercase backdrop-blur-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#6DFFB0] shrink-0" />
+                RHINOTREK · NORTHEAST INDIA
               </div>
-              <span className={`${dest.badgeBg} text-white/90 text-[10px] font-semibold px-3 py-1.5 rounded-full self-start tracking-[0.12em] uppercase`}>
-                {dest.badge}
+            </motion.div>
+
+            {/* Headline */}
+            <motion.h1
+              initial={{ opacity: 0, y: 26 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.88, delay: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="text-[2rem] sm:text-[4.25rem] md:text-[5.75rem] font-bold text-white leading-[1.02] tracking-[-0.025em] mb-7"
+            >
+              Plan Northeast India<br />
+              <span className="bg-gradient-to-r from-[#E8A44A] via-[#D4884A] to-[#C07030] bg-clip-text text-transparent">
+                Like Someone Local
               </span>
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-2">{dest.name}</h3>
-                <p className="text-white/50 text-sm leading-snug">{dest.tagline}</p>
+            </motion.h1>
+
+            {/* Subheadline */}
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.78, delay: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="text-[1rem] sm:text-[1.1rem] text-white/46 max-w-xl leading-relaxed font-light mb-12 sm:mb-14"
+            >
+              Reality-based itineraries with weather, permits, road intelligence and local travel knowledge.
+            </motion.p>
+
+            {/* Trust pills */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.68, delay: 0.50, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="flex items-center justify-center gap-5 sm:gap-8 flex-wrap"
+            >
+              {(["Route Verified", "Weather Aware", "Budget Matched", "Local Intelligence"] as const).map((t) => (
+                <span key={t} className="flex items-center gap-2 text-white/48 text-[11px] sm:text-xs font-medium">
+                  <InlineIcon name="check2" size={10} strokeWidth={2.5} color="#6DFFB0" />
+                  {t}
+                </span>
+              ))}
+            </motion.div>
+
+          </div>
+
+          {/* ── Planner Card ── */}
+          <div
+            id="planner"
+            className="scroll-mt-20 mx-auto"
+            style={{ width: "min(92vw, 1100px)" }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 36 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.78, delay: 0.68, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
+              <form
+                onSubmit={onSubmit}
+                noValidate
+                className="rounded-[32px] border border-white/38 p-8 md:p-10"
+                style={{
+                  background: "rgba(255,255,255,0.86)",
+                  backdropFilter: "blur(32px)",
+                  WebkitBackdropFilter: "blur(32px)",
+                  boxShadow: `${mood.formGlow}, inset 0 1px 0 rgba(255,255,255,0.92)`,
+                  transition: "box-shadow 0.6s ease",
+                } as React.CSSProperties}
+              >
+                <p className="text-[10px] font-bold text-[#6B7280]/52 uppercase tracking-[0.16em] mb-9">Plan your trip</p>
+
+                {/* Row 1: Destination Carousel */}
+                <div className="flex flex-col gap-3 mb-9">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-baseline gap-3">
+                      <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Destination</label>
+                      <motion.span
+                        key={form.destination}
+                        initial={{ opacity: 0, x: -4 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="text-[9px] font-semibold uppercase tracking-[0.16em]"
+                        style={{ color: mood.accentColor }}
+                      >
+                        {form.destination}
+                      </motion.span>
+                    </div>
+                    {/* Prev / Next arrows */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const prev = Math.max(0, destIdx - 1);
+                          setDestIdx(prev);
+                          if (DESTINATIONS[prev]?.active) {
+                            setForm(f => ({ ...f, destination: DESTINATIONS[prev]!.name }));
+                          }
+                        }}
+                        disabled={destIdx === 0}
+                        className="w-8 h-8 rounded-full border border-[#DDE8F7] bg-white flex items-center justify-center transition-opacity disabled:opacity-25 hover:border-[#2551CC]/40 hover:bg-[#EEF3FB]"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1C2333" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 18l-6-6 6-6"/>
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = Math.min(DESTINATIONS.length - 1, destIdx + 1);
+                          setDestIdx(next);
+                          if (DESTINATIONS[next]?.active) {
+                            setForm(f => ({ ...f, destination: DESTINATIONS[next]!.name }));
+                          }
+                        }}
+                        disabled={destIdx === DESTINATIONS.length - 1}
+                        className="w-8 h-8 rounded-full border border-[#DDE8F7] bg-white flex items-center justify-center transition-opacity disabled:opacity-25 hover:border-[#2551CC]/40 hover:bg-[#EEF3FB]"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1C2333" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Carousel viewport */}
+                  <div className="overflow-hidden rounded-2xl">
+                    <div
+                      className="flex gap-3 transition-transform duration-500"
+                      style={{
+                        transform: `translateX(calc(-${destIdx} * (80% + 12px)))`,
+                        transitionTimingFunction: "cubic-bezier(0.25, 1, 0.5, 1)",
+                      }}
+                    >
+                      {DESTINATIONS.map((d) => {
+                        const isSelected = form.destination === d.name;
+                        return (
+                          <button
+                            key={d.name}
+                            type="button"
+                            onClick={() => {
+                              if (!d.active) return;
+                              setForm(f => ({ ...f, destination: d.name }));
+                            }}
+                            className="relative flex-shrink-0 rounded-2xl overflow-hidden focus:outline-none group"
+                            style={{ width: "80%", height: 200, cursor: d.active ? "pointer" : "default" }}
+                          >
+                            {/* Image */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={d.img}
+                              alt={d.name}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                            />
+
+                            {/* Gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+                            {/* Inactive dim */}
+                            {!d.active && (
+                              <div className="absolute inset-0 bg-black/30" />
+                            )}
+
+                            {/* Selected ring */}
+                            {isSelected && (
+                              <div
+                                className="absolute inset-0 rounded-2xl pointer-events-none"
+                                style={{ boxShadow: `inset 0 0 0 2.5px ${mood.accentColor}` }}
+                              />
+                            )}
+
+                            {/* Card text */}
+                            <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end justify-between">
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/55 mb-1">
+                                  {d.subtitle}
+                                </p>
+                                <p className="text-[1.3rem] font-bold text-white leading-none tracking-tight">
+                                  {d.short}
+                                </p>
+                              </div>
+                              {!d.active && (
+                                <span className="text-[10px] font-bold bg-white/15 backdrop-blur-sm text-white px-3 py-1.5 rounded-full border border-white/20 leading-none">
+                                  Soon
+                                </span>
+                              )}
+                              {isSelected && d.active && (
+                                <div
+                                  className="w-6 h-6 rounded-full flex items-center justify-center"
+                                  style={{ background: mood.accentColor }}
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                                    <path d="M2 5.5l2.5 2.5 4.5-4.5" stroke="white" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: From */}
+                <div className="flex flex-col gap-2.5 mb-9">
+                  <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">From</label>
+                  <input
+                    type="text"
+                    placeholder="Your city — Delhi, Bangalore, Kolkata..."
+                    value={form.origin}
+                    onChange={(e) => setForm({ ...form, origin: e.target.value })}
+                    className="rounded-2xl border border-[#DDE8F7] bg-white/70 px-5 py-4 text-sm text-[#1C2333] placeholder-[#A8B5C8] outline-none focus:border-[#2551CC] focus:ring-2 focus:ring-[#2551CC]/10 transition"
+                  />
+                </div>
+
+                {/* Row 2: Travel Dates */}
+                <div className="mb-9">
+                  <div className="flex flex-col gap-2.5">
+                    <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Travel Dates</label>
+                    <DateRangePicker
+                      value={form.startDate ? { from: form.startDate, to: form.endDate } : undefined}
+                      onChange={(range: DateRange | undefined) =>
+                        setForm((prev) => ({ ...prev, startDate: range?.from, endDate: range?.to }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* Season Snippet */}
+                {form.startDate && (
+                  <div className="mb-9">
+                    <SeasonSnippet
+                      destination={form.destination}
+                      startDate={form.startDate}
+                      moodBorder={mood.cardBorder}
+                      moodBg={`${mood.accentLight}99`}
+                    />
+                  </div>
+                )}
+
+                <Divider />
+
+                {/* Estimate Your Budget */}
+                <div className="mb-9">
+                  <TripBudgetEstimator
+                    travelers={form.travelers}
+                    days={tripDays}
+                    onTravelersChange={(n) => setForm({ ...form, travelers: n })}
+                    selectedBudgetId={form.budget.toLowerCase()}
+                    onBudgetSelect={(id) =>
+                      setForm({ ...form, budget: id.charAt(0).toUpperCase() + id.slice(1) })
+                    }
+                  />
+                </div>
+
+                <Divider />
+
+                {/* Travel Mood */}
+                <div className="flex flex-col gap-3.5">
+                  <label className="text-[10px] font-bold text-[#6B7280]/56 uppercase tracking-[0.14em]">Travel Mood</label>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+                    {VIBES.map((v) => {
+                      const selected = form.vibes.includes(v.label);
+                      return (
+                        <button
+                          key={v.label}
+                          type="button"
+                          onClick={() => toggleVibe(v.label)}
+                          className="flex flex-col gap-2 text-left group focus:outline-none"
+                        >
+                          {/* Image */}
+                          <div className="relative w-full aspect-square rounded-xl overflow-hidden">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={v.img}
+                              alt={v.label}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            {/* Selected: accent overlay + checkmark */}
+                            {selected && (
+                              <div className="absolute inset-0 bg-[#2551CC]/38 flex items-end justify-end p-2">
+                                <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
+                                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                    <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#2551CC" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                </div>
+                              </div>
+                            )}
+                            {/* Hover: subtle dark overlay */}
+                            {!selected && (
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/12 transition-colors duration-200" />
+                            )}
+                            {/* Selected border ring */}
+                            {selected && (
+                              <div className="absolute inset-0 rounded-xl ring-2 ring-[#2551CC] ring-inset" />
+                            )}
+                          </div>
+                          {/* Label */}
+                          <span
+                            className="text-[12.5px] font-medium leading-none transition-colors"
+                            style={{ color: selected ? "#2551CC" : "#1C2333" }}
+                          >
+                            {v.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {error && <p className="mt-5 text-sm text-red-500">{error}</p>}
+
+                <button
+                  type="submit"
+                  className={`mt-10 w-full rounded-2xl bg-gradient-to-r from-[#2551CC] to-[#1C306E] text-white py-4 text-base font-semibold hover:opacity-95 active:scale-[0.99] transition-all tracking-wide ${isReady ? "cta-ready" : "shadow-sm opacity-80"}`}
+                >
+                  Generate My Trip →
+                </button>
+
+              </form>
+            </motion.div>
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* ── Reality Layer ── */}
+      <section id="how-it-works" className="bg-[#F2EDE8] py-28 px-6 scroll-mt-20">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-16">
+            <p className="text-[10px] font-bold text-[#B07840]/70 uppercase tracking-[0.22em] mb-4">The Rhinotrek Difference</p>
+            <h2 className="text-[2.2rem] sm:text-[2.8rem] font-bold text-[#2D1500] leading-[1.08] tracking-[-0.02em]">
+              No impossible itineraries.
+            </h2>
+            <p className="text-[1rem] text-[#8C6644] mt-4 max-w-lg leading-relaxed">
+              Real routes. Real conditions. Better trips.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-14">
+            {[
+              {
+                num: "01",
+                label: "Realistic Routes",
+                desc: "No impossible itineraries. Every route follows real Northeast travel patterns — road conditions, shared transport and actual journey times.",
+              },
+              {
+                num: "02",
+                label: "Local Intelligence",
+                desc: "Seasonal caveats, permit requirements and road closures are baked into every plan — not mentioned as an afterthought.",
+              },
+              {
+                num: "03",
+                label: "Budget Transparency",
+                desc: "Trips matched to what you actually want to spend, with honest per-person estimates across transport, stays and food.",
+              },
+            ].map(({ num, label, desc }, i) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.52, ease: [0.25, 0.46, 0.45, 0.94], delay: i * 0.10 }}
+                className="flex flex-col gap-4"
+              >
+                <span className="text-[11px] font-bold text-[#B07840]/50 tracking-[0.22em] uppercase">{num}</span>
+                <div className="w-8 h-px bg-[#D4B090]" />
+                <h3 className="text-[16px] font-bold text-[#2D1500] leading-snug tracking-tight">{label}</h3>
+                <p className="text-[0.9rem] text-[#6B7280] leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Destination Chapters ── */}
+      <section id="destinations" className="bg-[#0A0500] py-28 px-6 scroll-mt-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-16">
+            <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.22em] mb-4">Northeast India</p>
+            <h2 className="text-[2.2rem] sm:text-[2.8rem] font-bold text-white leading-[1.08] tracking-[-0.02em]">
+              Where do you want to go?
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {
+                name: "Meghalaya",
+                tagline: "Living root bridges. Monsoon clouds. Clean air.",
+                places: "Shillong · Cherrapunji · Dawki",
+                mood: "Mist & Waterfalls",
+                base: "linear-gradient(145deg, #0C1A30 0%, #0F2244 50%, #0A1528 100%)",
+                glow: "rgba(20,80,160,0.35)",
+                badge: "Available Now", badgeStyle: "bg-[#2551CC]",
+                icon: "tree-pine" as const, iconColor: "#5D8B4A",
+              },
+              {
+                name: "Arunachal Pradesh",
+                tagline: "Tawang monastery. Sunrise at Sela Pass.",
+                places: "Tawang · Ziro · Bomdila",
+                mood: "Sunrise & Mountains",
+                base: "linear-gradient(145deg, #2A1A0A 0%, #4A2C14 50%, #381E0C 100%)",
+                glow: "rgba(180,90,20,0.32)",
+                badge: "Coming Soon", badgeStyle: "bg-white/8 border border-white/12",
+                icon: "mountain" as const, iconColor: "#B7791F",
+              },
+              {
+                name: "Sikkim",
+                tagline: "Himalayan views. Tsomgo Lake. Quiet mountain towns.",
+                places: "Gangtok · Lachung · Pelling",
+                mood: "Snow & Silence",
+                base: "linear-gradient(145deg, #172030 0%, #213348 50%, #192838 100%)",
+                glow: "rgba(50,90,160,0.28)",
+                badge: "Coming Soon", badgeStyle: "bg-white/8 border border-white/12",
+                icon: "snowflake" as const, iconColor: "#5580B8",
+              },
+            ].map((dest) => (
+              <div
+                key={dest.name}
+                className="relative rounded-3xl overflow-hidden min-h-[340px] flex flex-col p-8"
+                style={{ background: dest.base }}
+              >
+                {/* Atmospheric glow */}
+                <div
+                  className="absolute bottom-0 right-0 w-[280px] h-[280px] rounded-full pointer-events-none"
+                  style={{ background: `radial-gradient(circle, ${dest.glow} 0%, transparent 65%)`, filter: "blur(40px)" }}
+                />
+                {/* Large icon watermark */}
+                <div className="absolute bottom-4 right-5 opacity-[0.07] pointer-events-none select-none">
+                  <InlineIcon name={dest.icon} size={120} strokeWidth={0.8} color={dest.iconColor} />
+                </div>
+                {/* Content */}
+                <div className="relative z-10 flex flex-col h-full gap-4">
+                  <span className={`${dest.badgeStyle} text-white/85 text-[9px] font-bold px-3 py-1.5 rounded-full self-start tracking-[0.14em] uppercase backdrop-blur-sm`}>
+                    {dest.badge}
+                  </span>
+                  <div className="mt-auto">
+                    <p className="text-[9px] font-bold text-white/28 uppercase tracking-[0.18em] mb-2">{dest.mood}</p>
+                    <h3 className="text-2xl font-bold text-white mb-2 tracking-[-0.01em]">{dest.name}</h3>
+                    <p className="text-white/48 text-sm leading-snug">{dest.tagline}</p>
+                  </div>
+                  <p className="text-white/24 text-xs font-medium tracking-wide">{dest.places}</p>
+                </div>
               </div>
-              <p className="text-white/30 text-xs font-medium mt-auto tracking-wide">{dest.places}</p>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── About ── */}
+      <section id="about" className="bg-[#F9F6F2] py-24 px-6 scroll-mt-20">
+        <div className="max-w-3xl mx-auto text-center flex flex-col items-center gap-8">
+          <div className="flex flex-col items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#A8896C]">About Rhinotrek</span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-[#1C2333] tracking-tight leading-tight">
+              Built by someone who missed a permit deadline in Tawang
+            </h2>
+          </div>
+          <p className="text-[#6B7280] text-lg leading-relaxed max-w-2xl">
+            Northeast India is genuinely different. Roads close with three days of rain. Permits take 48 hours. Festivals shift the entire logistics of a region. Most travel tools treat it like any other destination — we don't.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full mt-2">
+            {[
+              { label: "Routes verified against real road conditions", icon: "🛣️" },
+              { label: "Permit requirements updated each season",      icon: "📋" },
+              { label: "Budget ranges from travellers who've been",    icon: "₹" },
+            ].map((item) => (
+              <div key={item.label} className="flex flex-col items-center gap-2.5 bg-white rounded-2xl px-5 py-5 border border-[#EDE8E2] shadow-[0_1px_4px_rgba(0,0,0,0.04)]">
+                <span className="text-2xl leading-none">{item.icon}</span>
+                <p className="text-[13px] text-[#4B5563] leading-snug text-center font-medium">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[#A8B5C8] text-sm">
+            Rhinotrek is a small independent tool. No sponsored listings. No paid placements.
+          </p>
         </div>
       </section>
 

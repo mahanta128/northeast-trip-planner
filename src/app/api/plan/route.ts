@@ -87,7 +87,10 @@ Return ONLY valid JSON. No markdown. No text outside the JSON.
     {
       "day": 1,
       "location": "",
-      "highlights": ["", "", ""]
+      "highlights": ["", "", ""],
+      "localTip": "",
+      "hiddenGem": "",
+      "avoidThis": ""
     }
   ],
   "realityCheck": ["", "", "", ""]
@@ -124,6 +127,9 @@ budget: per-person INR ranges for each category. Format "₹X–Y".
 itinerary: exactly ${days} day objects.
 - location: primary place for the day. City or landmark name only.
 - highlights: exactly 3 strings. Each = one activity. Max 7 words. Start each with an action verb.
+- localTip: 1 sentence. Insider knowledge specific to this day's location only. Max 12 words. Must be hyper-specific (timing, exact food spot, price negotiation, etc).
+- hiddenGem: 1 sentence. One off-beaten-path spot or experience near this location. Max 12 words. Must be a real specific place or experience, not generic.
+- avoidThis: 1 sentence. One specific common mistake tourists make at this exact location. Max 12 words. Must be actionable and specific, not generic advice.
 
 realityCheck: 4–5 strings. Each is one practical bullet.
 - Start with "✓" for tips or "⚠" for warnings.

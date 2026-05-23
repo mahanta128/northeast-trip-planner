@@ -1,4 +1,11 @@
 @import "tailwindcss";
+@import "lenis/dist/lenis.css";
+
+/* ─── Lenis smooth scroll ────────────────────────────────── */
+
+html {
+  scroll-behavior: auto !important;
+}
 
 /* ─── Design Tokens ───────────────────────────────────────── */
 
