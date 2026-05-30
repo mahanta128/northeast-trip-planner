@@ -36,12 +36,12 @@ const DESTINATIONS = [
   {
     name: "Arunachal Pradesh", short: "Arunachal", icon: "mountain", active: false,
     subtitle: "Dawn-lit Mountains",
-    img: "https://images.unsplash.com/photo-1672399444836-3f2d667ded8e?auto=format&fit=crop&w=3840&q=100",
+    img: "https://images.unsplash.com/photo-1672399444836-3f2d667ded8e?auto=format&fit=crop&w=800&q=80",
   },
   {
     name: "Sikkim", short: "Sikkim", icon: "snowflake", active: false,
     subtitle: "Mystic Himalayas",
-    img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=3840&q=100",
+    img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80",
   },
 ];
 
@@ -2035,7 +2035,9 @@ function HomePage({
                             <img
                               src={d.img}
                               alt={d.name}
+                              loading="lazy"
                               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                             />
 
                             {/* Gradient overlay */}
