@@ -1,7 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+// import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function getSeasonInfo(dateStr: string): { season: string; note: string } {
   const month = new Date(dateStr).getMonth() + 1;
@@ -147,20 +149,32 @@ Banned words: breathtaking, vibrant, nestled, gem, immerse, stunning, lush, pict
 All trips must route through Guwahati.`;
 
   try {
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const response = await client.chat.completions.create({
+      model: "gpt-4.1-mini",
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
 
-    const raw = (message.content[0] as { type: string; text: string }).text;
+    const raw = response.choices[0]?.message?.content ?? "";
     const jsonStart = raw.indexOf("{");
     const jsonEnd = raw.lastIndexOf("}");
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
 
     return NextResponse.json({ plan: parsed });
   } catch (err) {
-    console.error("Anthropic API error:", err);
+    // Anthropic backup (commented):
+    // const message = await anthropicClient.messages.create({
+    //   model: "claude-sonnet-4-6",
+    //   max_tokens: 4096,
+    //   messages: [{ role: "user", content: prompt }],
+    // });
+    // const raw = (message.content[0] as { type: string; text: string }).text;
+    // const jsonStart = raw.indexOf("{");
+    // const jsonEnd = raw.lastIndexOf("}");
+    // const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
+    // return NextResponse.json({ plan: parsed });
+
+    console.error("OpenAI API error:", err);
     return NextResponse.json({ error: "Failed to generate trip plan." }, { status: 500 });
   }
 }

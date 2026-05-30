@@ -946,7 +946,6 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
   const scoreDisplay = scoreNum > 10 ? `${scoreNum}%` : `${scoreNum * 10}%`;
   const [openDay,    setOpenDay]    = useState<number>(plan.itinerary[0]?.day ?? 1);
   const [showCTA,    setShowCTA]    = useState(false);
-  const [saved,      setSaved]      = useState(false);
   const [copied,     setCopied]     = useState(false);
   const [sharing,    setSharing]    = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -967,16 +966,6 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
       window.removeEventListener("afterprint",  after);
     };
   }, []);
-
-  function handleSave() {
-    try {
-      localStorage.setItem("ntp-saved-trip", JSON.stringify({
-        plan, context, savedAt: new Date().toISOString(),
-      }));
-    } catch { /* localStorage unavailable */ }
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2400);
-  }
 
   async function handleShare() {
     const lines = [
@@ -1625,26 +1614,6 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                 </span>
               </button>
 
-              {/* Save Trip */}
-              <button
-                type="button"
-                onClick={handleSave}
-                className="flex items-center gap-3 px-4 py-[11px] hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors duration-120 text-left"
-              >
-                <motion.div
-                  animate={saved ? { scale: [1, 1.25, 1] } : {}}
-                  transition={{ duration: 0.3 }}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${saved ? "bg-emerald-100" : "bg-[#EEF3FB]"}`}
-                >
-                  {saved
-                    ? <InlineIcon name="check2" size={13} strokeWidth={2.5} color="#059669" />
-                    : <InlineIcon name="save" size={13} strokeWidth={1.75} color="#355E9D" />}
-                </motion.div>
-                <span className={`text-[12px] font-semibold transition-colors ${saved ? "text-emerald-600" : "text-[#1C2333]"}`}>
-                  {saved ? "Saved!" : "Save Trip"}
-                </span>
-              </button>
-
               {/* Download PDF */}
               <button
                 type="button"
@@ -1709,26 +1678,6 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                 </motion.div>
                 <span className={`text-[9px] font-bold uppercase tracking-[0.12em] transition-colors ${copied ? "text-emerald-600" : "text-[#6B7280]"}`}>
                   {copied ? "Copied" : "Share"}
-                </span>
-              </button>
-
-              {/* Save Trip */}
-              <button
-                type="button"
-                onClick={handleSave}
-                className="flex-1 flex flex-col items-center gap-1.5 pt-3.5 pb-1 hover:bg-[#F8FAFF] active:bg-[#EEF3FB] transition-colors"
-              >
-                <motion.div
-                  animate={saved ? { scale: [1, 1.22, 1] } : {}}
-                  transition={{ duration: 0.28 }}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${saved ? "bg-emerald-100" : "bg-[#EEF3FB]"}`}
-                >
-                  {saved
-                    ? <InlineIcon name="check2" size={15} strokeWidth={2.5} color="#059669" />
-                    : <InlineIcon name="save" size={15} strokeWidth={1.75} color="#355E9D" />}
-                </motion.div>
-                <span className={`text-[9px] font-bold uppercase tracking-[0.12em] transition-colors ${saved ? "text-emerald-600" : "text-[#6B7280]"}`}>
-                  {saved ? "Saved" : "Save"}
                 </span>
               </button>
 
