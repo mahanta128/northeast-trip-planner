@@ -16,7 +16,7 @@ function getSeasonInfo(dateStr: string): { season: string; note: string } {
 
 export async function POST(req: NextRequest) {
   const {
-    origin, days, budget, budgetRange, budgetStyle, vibes, travelers = 2,
+    origin, days, budget, budgetRange, budgetStyle, vibes, travelStyle, travelers = 2,
     startDate, endDate,
     seasonName, seasonNote,
     permitRequired, permitName,
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   const prompt = `You are a Northeast India travel expert helping domestic Indian travellers.
 
-Generate a realistic trip plan for ${travelerLine} from ${origin} to their chosen destination, travelling for ${days} days, budget: ${budgetLine} (per person), travel vibes: ${vibeList}.${dateContext}${permitLine}${festivalLine}
+Generate a realistic trip plan for ${travelerLine} from ${origin} to their chosen destination, travelling for ${days} days, budget: ${budgetLine} (per person), travel vibes: ${vibeList}, travel style: ${travelStyle || "Private / Solo"}.${dateContext}${permitLine}${festivalLine}
 
 Return ONLY valid JSON. No markdown. No text outside the JSON.
 
@@ -98,7 +98,7 @@ Return ONLY valid JSON. No markdown. No text outside the JSON.
 
 Strict field rules:
 
-tripTitle: max 6 words. Destination + trip character. No city name prefixes. No "&" connectors. Write the destination region, not a specific city. Example: "Meghalaya Plateau Escape" not "Shillong & Meghalaya Plateau Escape".
+tripTitle: 2–4 evocative words. Draw from the terrain, season, travel character, or a distinctive local quality — not from day counts or destination names alone. Style inspired by premium travel design houses: poetic, thematic, specific. Examples: "Meghalaya Monsoon Journal", "Living Root Chronicle", "Khasi Plateau Immersion", "Arunachal High-Altitude Sojourn", "Silk Route Quiet Expedition". Never use generic patterns like "X-Day Trip", "Tour", "Package", or city name prefixes. No "&" connectors.
 
 summary: exactly 2 sentences. Route + trip character. No adjectives.
 

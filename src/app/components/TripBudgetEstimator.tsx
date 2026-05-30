@@ -65,15 +65,17 @@ function BudgetCard({
   // Card backgrounds
   const cardCls = isPremium
     ? "bg-gradient-to-br from-[#1B2E69] via-[#192C66] to-[#111C4A] border-[#253278]"
+    : selected
+    ? "bg-[#FFF7F8] border-[#FF385C]/30"
     : isBudget
     ? "bg-[#F3F7FD] border-[#DDE8F7]"
     : "bg-white border-[#DDE8F7]";
 
-  // Selection ring
+  // Selection ring + glow
   const ringCls = selected
     ? isPremium
-      ? "ring-2 ring-[#A0C4FF]"
-      : "ring-2 ring-[#2551CC]"
+      ? "ring-2 ring-[#FF385C] shadow-[0_6px_24px_rgba(255,56,92,0.28)]"
+      : "ring-2 ring-[#FF385C] shadow-[0_4px_20px_rgba(255,56,92,0.22)]"
     : isComfortable
     ? "ring-1 ring-[#DDE8F7]"
     : "";
@@ -115,12 +117,12 @@ function BudgetCard({
 
   // Checkmark
   const checkCls = isPremium
-    ? "bg-white text-[#2551CC]"
-    : "bg-[#2551CC] text-white";
+    ? "bg-white text-[#FF385C]"
+    : "bg-[#FF385C] text-white";
 
   const hoverShadow = isPremium
     ? "hover:shadow-[0_10px_32px_rgba(11,17,56,0.36)] active:scale-[0.98]"
-    : "hover:shadow-[0_4px_16px_rgba(37,81,204,0.10)] active:scale-[0.98]";
+    : "hover:shadow-[0_4px_16px_rgba(255,56,92,0.14)] active:scale-[0.98]";
 
   return (
     <button
@@ -150,11 +152,6 @@ function BudgetCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {discountPct > 0 && (
-            <span className={`text-[9px] font-bold px-2 py-1 rounded-full leading-none whitespace-nowrap ${badgeCls}`}>
-              {discountPct}% off
-            </span>
-          )}
           {selected && (
             <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${checkCls}`}>
               <InlineIcon name="check2" size={11} strokeWidth={2.5} color={isPremium ? "#2551CC" : "white"} />

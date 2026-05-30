@@ -84,8 +84,8 @@ body {
 /* ─── CTA ready pulse ────────────────────────────────────── */
 
 @keyframes cta-ready-pulse {
-  0%, 100% { box-shadow: 0 4px 16px rgba(37, 81, 204, 0.22); }
-  50%       { box-shadow: 0 8px 36px rgba(37, 81, 204, 0.55), 0 0 0 5px rgba(37, 81, 204, 0.13); }
+  0%, 100% { box-shadow: 0 4px 16px rgba(255, 56, 92, 0.28); }
+  50%       { box-shadow: 0 8px 36px rgba(255, 56, 92, 0.52), 0 0 0 5px rgba(255, 56, 92, 0.12); }
 }
 
 .cta-ready {
