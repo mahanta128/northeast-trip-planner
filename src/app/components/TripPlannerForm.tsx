@@ -1982,9 +1982,7 @@ function HomePage({
                         onClick={() => {
                           const prev = Math.max(0, destIdx - 1);
                           setDestIdx(prev);
-                          if (DESTINATIONS[prev]?.active) {
-                            setForm(f => ({ ...f, destination: DESTINATIONS[prev]!.name }));
-                          }
+                          setForm(f => ({ ...f, destination: DESTINATIONS[prev]!.name }));
                         }}
                         disabled={destIdx === 0}
                         className="w-8 h-8 rounded-full border border-[#DDE8F7] bg-white flex items-center justify-center transition-opacity disabled:opacity-25 hover:border-[#2551CC]/40 hover:bg-[#EEF3FB]"
@@ -1998,9 +1996,7 @@ function HomePage({
                         onClick={() => {
                           const next = Math.min(DESTINATIONS.length - 1, destIdx + 1);
                           setDestIdx(next);
-                          if (DESTINATIONS[next]?.active) {
-                            setForm(f => ({ ...f, destination: DESTINATIONS[next]!.name }));
-                          }
+                          setForm(f => ({ ...f, destination: DESTINATIONS[next]!.name }));
                         }}
                         disabled={destIdx === DESTINATIONS.length - 1}
                         className="w-8 h-8 rounded-full border border-[#DDE8F7] bg-white flex items-center justify-center transition-opacity disabled:opacity-25 hover:border-[#2551CC]/40 hover:bg-[#EEF3FB]"
