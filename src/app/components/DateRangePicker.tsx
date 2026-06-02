@@ -13,6 +13,7 @@ interface Props {
 export default function DateRangePicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [numMonths, setNumMonths] = useState(2);
+  const [draft, setDraft] = useState<DateRange | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,13 +25,21 @@ export default function DateRangePicker({ value, onChange }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    setDraft(value);
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [open]);
 
   const today = startOfDay(new Date());
@@ -47,9 +56,11 @@ export default function DateRangePicker({ value, onChange }: Props) {
     label = `${format(from, "d MMM")} → select end date`;
   }
 
-  function handleSelect(range: DateRange | undefined) {
-    onChange(range);
-    if (range?.from && range?.to && differenceInCalendarDays(range.to, range.from) > 0) setOpen(false);
+  const okEnabled = !!(draft?.from && draft?.to && differenceInCalendarDays(draft.to, draft.from) > 0);
+
+  function handleConfirm() {
+    onChange(draft);
+    setOpen(false);
   }
 
   return (
@@ -83,8 +94,8 @@ export default function DateRangePicker({ value, onChange }: Props) {
         <div className="absolute top-full left-0 mt-2 z-50 bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_8px_40px_rgba(37,81,204,0.12),0_2px_8px_rgba(0,0,0,0.04)] border border-[#DDE8F7] p-5 w-max max-w-[calc(100vw-2rem)]">
           <DayPicker
             mode="range"
-            selected={value}
-            onSelect={handleSelect}
+            selected={draft}
+            onSelect={setDraft}
             numberOfMonths={numMonths}
             disabled={{ before: today }}
             showOutsideDays={false}
@@ -122,6 +133,27 @@ export default function DateRangePicker({ value, onChange }: Props) {
               outside: "rdp-out",
             }}
           />
+          <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-[#EEF3FB]">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-sm font-medium text-[#6B7A99] hover:text-[#1C2333] transition-colors px-3 py-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={!okEnabled}
+              className={`text-sm font-semibold text-white px-5 py-2 rounded-full transition-all ${
+                okEnabled
+                  ? "bg-[#FF385C] hover:bg-[#e0324f] cursor-pointer"
+                  : "bg-[#FFBCC8] cursor-not-allowed"
+              }`}
+            >
+              OK
+            </button>
+          </div>
         </div>
       )}
     </div>
