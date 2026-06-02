@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 // import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { RHINOTREK_SYSTEM_PROMPT } from "@/lib/prompts/systemPrompt";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -152,7 +153,10 @@ All trips must route through Guwahati.`;
     const response = await client.chat.completions.create({
       model: "gpt-4.1-mini",
       max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: RHINOTREK_SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
     });
 
     const raw = response.choices[0]?.message?.content ?? "";
