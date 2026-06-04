@@ -940,7 +940,7 @@ function ConsciousTravelBlock() {
 
 /* ─── Results ─────────────────────────────────────────────── */
 
-function TripResults({ plan, context, onReset }: { plan: TripPlan; context: TripContext | null; onReset: () => void }) {
+function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; context: TripContext | null; onReset: () => void; onAskRhye: () => void }) {
   const mood = MOOD_THEMES[context?.destination ?? "Meghalaya"] ?? MOOD_THEMES["Meghalaya"]!;
 
   const scoreNum     = parseInt(plan.tripFit.score);
@@ -950,7 +950,6 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
   const [copied,     setCopied]     = useState(false);
   const [sharing,    setSharing]    = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [rhyeOpen,   setRhyeOpen]   = useState(false);
 
   useEffect(() => {
     const onScroll = () => setShowCTA(window.scrollY > 420);
@@ -1602,7 +1601,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
                 <button
                   key={q}
                   type="button"
-                  onClick={() => setRhyeOpen(true)}
+                  onClick={() => onAskRhye()}
                   className="text-[12px] font-medium text-[#FF385C] border border-[#FFCDD6] rounded-full px-3.5 py-1.5 hover:bg-[#FF385C]/6 transition-colors"
                 >
                   {q}
@@ -1612,7 +1611,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
             {/* CTA button */}
             <button
               type="button"
-              onClick={() => setRhyeOpen(true)}
+              onClick={() => onAskRhye()}
               className="self-start flex items-center gap-2.5 bg-[#FF385C] hover:bg-[#e0324f] text-white text-[13.5px] font-semibold px-5 py-3 rounded-2xl transition-colors shadow-[0_2px_12px_rgba(255,56,92,0.30)]"
             >
               <span className="text-[11px] font-black tracking-[0.04em]">R</span>
@@ -1622,31 +1621,6 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
         </motion.div>
 
       </div>
-
-      {/* ── RHYE Chat Drawer ── */}
-      <RhyeChat
-        open={rhyeOpen}
-        onClose={() => setRhyeOpen(false)}
-        tripContext={{
-          destination:   context?.destination,
-          origin:        context?.origin,
-          dates:         context ? `${context.startDateFormatted} – ${context.endDateFormatted}` : undefined,
-          days:          context?.days,
-          travelers:     context?.travelers,
-          travelStyle:   context?.travelStyle,
-          budget:        context?.budget?.formatted,
-          season:        context?.season?.name,
-          seasonNote:    context?.season?.weather,
-          permit:        context?.permit,
-          festivals:     context?.festivals?.map((f) => f.name),
-          tripTitle:     plan.tripTitle,
-          summary:       plan.summary,
-          transport:     plan.transport,
-          stay:          plan.stay,
-          itinerary:     plan.itinerary,
-          realityCheck:  plan.realityCheck,
-        }}
-      />
 
       {/* ── Desktop: floating top-right action card ── */}
       <AnimatePresence>
@@ -2578,6 +2552,7 @@ export default function TripPlannerForm() {
   const [plan, setPlan]               = useState<TripPlan | null>(null);
   const [tripContext, setTripContext]  = useState<TripContext | null>(null);
   const [error, setError]             = useState("");
+  const [rhyeOpen, setRhyeOpen]       = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -2653,8 +2628,77 @@ export default function TripPlannerForm() {
     setForm(INITIAL);
   }
 
-  if (loading) return <LoadingState />;
-  if (plan)    return <TripResults plan={plan} context={tripContext} onReset={handleReset} />;
+  const rhyeTripContext: Record<string, unknown> = plan && tripContext ? {
+    destination:  tripContext.destination,
+    origin:       tripContext.origin,
+    dates:        `${tripContext.startDateFormatted} – ${tripContext.endDateFormatted}`,
+    days:         tripContext.days,
+    travelers:    tripContext.travelers,
+    travelStyle:  tripContext.travelStyle,
+    budget:       tripContext.budget?.formatted,
+    season:       tripContext.season?.name,
+    seasonNote:   tripContext.season?.weather,
+    permit:       tripContext.permit,
+    festivals:    tripContext.festivals?.map((f) => f.name),
+    tripTitle:    plan.tripTitle,
+    summary:      plan.summary,
+    transport:    plan.transport,
+    stay:         plan.stay,
+    itinerary:    plan.itinerary,
+    realityCheck: plan.realityCheck,
+  } : {};
 
-  return <HomePage form={form} setForm={setForm} onSubmit={handleSubmit} error={error} />;
+  return (
+    <>
+      {loading
+        ? <LoadingState />
+        : plan
+        ? <TripResults plan={plan} context={tripContext} onReset={handleReset} onAskRhye={() => setRhyeOpen(true)} />
+        : <HomePage form={form} setForm={setForm} onSubmit={handleSubmit} error={error} />
+      }
+
+      {/* ── RHYE Floating Action Button ── */}
+      <AnimatePresence>
+        {!rhyeOpen && !loading && (
+          <motion.button
+            key="rhye-fab"
+            type="button"
+            onClick={() => setRhyeOpen(true)}
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] }}
+            whileHover={{ scale: 1.08, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            aria-label="Ask RHYE"
+            className="fixed bottom-5 right-5 md:bottom-6 md:right-6 z-[55] w-14 h-14 rounded-full flex items-center justify-center select-none cursor-pointer"
+            style={{
+              background: "linear-gradient(135deg, #FF385C 0%, #D62B4B 100%)",
+              boxShadow: "0 4px 20px rgba(255,56,92,0.40), 0 2px 8px rgba(255,56,92,0.20), 0 1px 3px rgba(0,0,0,0.10)",
+            }}
+          >
+            {/* Rhino icon inline to avoid extra import complexity */}
+            <svg width="30" height="30" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="14" cy="15" rx="8.5" ry="8" fill="white" fillOpacity="0.13" stroke="white" strokeWidth="1.55"/>
+              <path d="M14 7C14 7 12.6 3.8 14 2.2C15.4 3.8 14 7 14 7Z" fill="white"/>
+              <path d="M5.5 11.5C5.5 11.5 4 9.8 4.5 8C5.5 7.5 6.5 8 5.5 11.5Z" fill="white" fillOpacity="0.25" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
+              <path d="M22.5 11.5C22.5 11.5 24 9.8 23.5 8C22.5 7.5 21.5 8 22.5 11.5Z" fill="white" fillOpacity="0.25" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
+              <circle cx="10" cy="14" r="1.4" fill="white"/>
+              <circle cx="18" cy="14" r="1.4" fill="white"/>
+              <path d="M10.5 19C10.5 19 11.8 20.5 14 20.5C16.2 20.5 17.5 19 17.5 19" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+              <ellipse cx="12" cy="17" rx="0.9" ry="0.55" fill="white" fillOpacity="0.5"/>
+              <ellipse cx="16" cy="17" rx="0.9" ry="0.55" fill="white" fillOpacity="0.5"/>
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* ── RHYE Chat Panel ── */}
+      <RhyeChat
+        open={rhyeOpen}
+        onClose={() => setRhyeOpen(false)}
+        tripContext={rhyeTripContext}
+      />
+    </>
+  );
 }
