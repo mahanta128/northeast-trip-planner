@@ -36,26 +36,31 @@ function TypingDots() {
   );
 }
 
-/* Minimal rhino head SVG — front-facing, clean, premium */
+/* One-horned Indian rhino — front-facing, horn on nose, wide muzzle, armor fold */
 export function RhinoIcon({ size = 28, color = "white" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Main head */}
-      <ellipse cx="14" cy="15" rx="8.5" ry="8" fill={color} fillOpacity="0.13" stroke={color} strokeWidth="1.55"/>
-      {/* Horn — single tapered spike above forehead */}
-      <path d="M14 7C14 7 12.6 3.8 14 2.2C15.4 3.8 14 7 14 7Z" fill={color}/>
-      {/* Left ear */}
-      <path d="M5.5 11.5C5.5 11.5 4 9.8 4.5 8C5.5 7.5 6.5 8 5.5 11.5Z" fill={color} fillOpacity="0.25" stroke={color} strokeWidth="1.4" strokeLinejoin="round"/>
-      {/* Right ear */}
-      <path d="M22.5 11.5C22.5 11.5 24 9.8 23.5 8C22.5 7.5 21.5 8 22.5 11.5Z" fill={color} fillOpacity="0.25" stroke={color} strokeWidth="1.4" strokeLinejoin="round"/>
-      {/* Eyes */}
-      <circle cx="10" cy="14" r="1.4" fill={color}/>
-      <circle cx="18" cy="14" r="1.4" fill={color}/>
-      {/* Smile */}
-      <path d="M10.5 19C10.5 19 11.8 20.5 14 20.5C16.2 20.5 17.5 19 17.5 19" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
-      {/* Nostrils */}
-      <ellipse cx="12" cy="17" rx="0.9" ry="0.55" fill={color} fillOpacity="0.5"/>
-      <ellipse cx="16" cy="17" rx="0.9" ry="0.55" fill={color} fillOpacity="0.5"/>
+      {/* Head — wide at muzzle, narrower at top, typical Indian rhino shape */}
+      <path d="M5.5 10C5.5 7 9 4.5 14 4.5C19 4.5 22.5 7 22.5 10V19C22.5 22.5 18.8 24.5 14 24.5C9.2 24.5 5.5 22.5 5.5 19V10Z"
+        fill={color} fillOpacity="0.13" stroke={color} strokeWidth="1.5"/>
+      {/* Small rounded ears — Indian rhino has small ears */}
+      <path d="M5.5 10C5.5 10 3.8 8.5 4.2 6.8C5.5 6.2 7 7.2 5.5 10Z"
+        fill={color} fillOpacity="0.3" stroke={color} strokeWidth="1.3" strokeLinejoin="round"/>
+      <path d="M22.5 10C22.5 10 24.2 8.5 23.8 6.8C22.5 6.2 21 7.2 22.5 10Z"
+        fill={color} fillOpacity="0.3" stroke={color} strokeWidth="1.3" strokeLinejoin="round"/>
+      {/* Eyes — small, deep-set */}
+      <circle cx="10" cy="12" r="1.3" fill={color}/>
+      <circle cx="18" cy="12" r="1.3" fill={color}/>
+      {/* Armor skin fold — characteristic of Indian rhino */}
+      <path d="M7 16C9.5 16.8 12 17 14 17C16 17 18.5 16.8 21 16"
+        stroke={color} strokeWidth="0.9" strokeLinecap="round" strokeOpacity="0.45"/>
+      {/* SINGLE HORN — on nose between eyes and muzzle */}
+      <path d="M14 4.5C14 4.5 12 0.8 14 0C16 0.8 14 4.5 14 4.5Z" fill={color}/>
+      {/* Wide muzzle — Indian rhino has a very wide, square upper lip */}
+      <rect x="9" y="18.5" width="10" height="4" rx="2" fill={color} fillOpacity="0.18" stroke={color} strokeWidth="1.3"/>
+      {/* Nostrils — wide-set on the broad muzzle */}
+      <ellipse cx="11.5" cy="20.5" rx="1.1" ry="0.7" fill={color} fillOpacity="0.55"/>
+      <ellipse cx="16.5" cy="20.5" rx="1.1" ry="0.7" fill={color} fillOpacity="0.55"/>
     </svg>
   );
 }

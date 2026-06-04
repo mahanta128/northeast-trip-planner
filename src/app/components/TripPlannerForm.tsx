@@ -9,7 +9,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import DateRangePicker from "./DateRangePicker";
 import TripBudgetEstimator from "./TripBudgetEstimator";
-import RhyeChat from "./RhyeChat";
+import RhyeChat, { RhinoIcon } from "./RhyeChat";
 import { PremiumIcon, InlineIcon } from "./ui/Icon";
 import {
   computeBudget, getSeasonData, PERMIT_INFO, getFestivals,
@@ -2677,18 +2677,7 @@ export default function TripPlannerForm() {
               boxShadow: "0 4px 20px rgba(255,56,92,0.40), 0 2px 8px rgba(255,56,92,0.20), 0 1px 3px rgba(0,0,0,0.10)",
             }}
           >
-            {/* Rhino icon inline to avoid extra import complexity */}
-            <svg width="30" height="30" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <ellipse cx="14" cy="15" rx="8.5" ry="8" fill="white" fillOpacity="0.13" stroke="white" strokeWidth="1.55"/>
-              <path d="M14 7C14 7 12.6 3.8 14 2.2C15.4 3.8 14 7 14 7Z" fill="white"/>
-              <path d="M5.5 11.5C5.5 11.5 4 9.8 4.5 8C5.5 7.5 6.5 8 5.5 11.5Z" fill="white" fillOpacity="0.25" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
-              <path d="M22.5 11.5C22.5 11.5 24 9.8 23.5 8C22.5 7.5 21.5 8 22.5 11.5Z" fill="white" fillOpacity="0.25" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/>
-              <circle cx="10" cy="14" r="1.4" fill="white"/>
-              <circle cx="18" cy="14" r="1.4" fill="white"/>
-              <path d="M10.5 19C10.5 19 11.8 20.5 14 20.5C16.2 20.5 17.5 19 17.5 19" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-              <ellipse cx="12" cy="17" rx="0.9" ry="0.55" fill="white" fillOpacity="0.5"/>
-              <ellipse cx="16" cy="17" rx="0.9" ry="0.55" fill="white" fillOpacity="0.5"/>
-            </svg>
+            <RhinoIcon size={30} />
           </motion.button>
         )}
       </AnimatePresence>
