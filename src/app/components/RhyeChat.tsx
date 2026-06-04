@@ -142,7 +142,7 @@ export default function RhyeChat({ open, onClose, tripContext }: RhyeChatProps) 
             exit={{ opacity: 0, y: 32 }}
             transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
             className={[
-              "fixed z-[70] flex flex-col",
+              "fixed z-[70] flex flex-col overflow-hidden",
               "bg-white/97 backdrop-blur-[20px]",
               "border border-[#E8EDF5]",
               "shadow-[0_-4px_40px_rgba(14,22,64,0.12),0_2px_12px_rgba(14,22,64,0.06)]",
@@ -151,7 +151,7 @@ export default function RhyeChat({ open, onClose, tripContext }: RhyeChatProps) 
               /* desktop override */
               "md:inset-auto md:bottom-[88px] md:right-6 md:rounded-[28px] md:w-[400px]",
             ].join(" ")}
-            style={{ maxHeight: "82vh" }}
+            style={{ maxHeight: "82vh", height: "82vh" }}
           >
             {/* Drag handle — mobile only */}
             <div className="md:hidden flex justify-center pt-3 pb-1 shrink-0">
