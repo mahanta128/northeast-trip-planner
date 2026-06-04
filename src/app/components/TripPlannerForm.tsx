@@ -9,6 +9,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import DateRangePicker from "./DateRangePicker";
 import TripBudgetEstimator from "./TripBudgetEstimator";
+import RhyeChat from "./RhyeChat";
 import { PremiumIcon, InlineIcon } from "./ui/Icon";
 import {
   computeBudget, getSeasonData, PERMIT_INFO, getFestivals,
@@ -949,6 +950,7 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
   const [copied,     setCopied]     = useState(false);
   const [sharing,    setSharing]    = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [rhyeOpen,   setRhyeOpen]   = useState(false);
 
   useEffect(() => {
     const onScroll = () => setShowCTA(window.scrollY > 420);
@@ -1569,7 +1571,82 @@ function TripResults({ plan, context, onReset }: { plan: TripPlan; context: Trip
           })}
         </div>
 
+        {/* ── RHYE CTA ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.48, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="rounded-[28px] border border-[#EEF3FB] overflow-hidden print-hide"
+          style={{ background: "linear-gradient(135deg, #fff8f9 0%, #fff4f6 50%, #fef0f2 100%)" }}
+        >
+          <div className="px-7 py-7 flex flex-col gap-5">
+            {/* Header row */}
+            <div className="flex items-start gap-4">
+              <div
+                className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg, #FF385C 0%, #E0324F 100%)" }}
+              >
+                <span className="text-[13px] font-black text-white tracking-[0.04em]">R</span>
+              </div>
+              <div className="flex flex-col gap-1 min-w-0">
+                <p className="text-[15px] font-bold text-[#1C2333] leading-none">Questions about this trip?</p>
+                <p className="text-[12.5px] text-[#6B7280] leading-relaxed">
+                  RHYE knows your itinerary, season, budget, and travel style. Ask anything.
+                </p>
+              </div>
+            </div>
+            {/* Sample prompts */}
+            <div className="flex flex-wrap gap-2">
+              {["Is this route realistic?", "What should I pack?", "Is it family friendly?"].map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => setRhyeOpen(true)}
+                  className="text-[12px] font-medium text-[#FF385C] border border-[#FFCDD6] rounded-full px-3.5 py-1.5 hover:bg-[#FF385C]/6 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+            {/* CTA button */}
+            <button
+              type="button"
+              onClick={() => setRhyeOpen(true)}
+              className="self-start flex items-center gap-2.5 bg-[#FF385C] hover:bg-[#e0324f] text-white text-[13.5px] font-semibold px-5 py-3 rounded-2xl transition-colors shadow-[0_2px_12px_rgba(255,56,92,0.30)]"
+            >
+              <span className="text-[11px] font-black tracking-[0.04em]">R</span>
+              Ask RHYE
+            </button>
+          </div>
+        </motion.div>
+
       </div>
+
+      {/* ── RHYE Chat Drawer ── */}
+      <RhyeChat
+        open={rhyeOpen}
+        onClose={() => setRhyeOpen(false)}
+        tripContext={{
+          destination:   context?.destination,
+          origin:        context?.origin,
+          dates:         context ? `${context.startDateFormatted} – ${context.endDateFormatted}` : undefined,
+          days:          context?.days,
+          travelers:     context?.travelers,
+          travelStyle:   context?.travelStyle,
+          budget:        context?.budget?.formatted,
+          season:        context?.season?.name,
+          seasonNote:    context?.season?.weather,
+          permit:        context?.permit,
+          festivals:     context?.festivals?.map((f) => f.name),
+          tripTitle:     plan.tripTitle,
+          summary:       plan.summary,
+          transport:     plan.transport,
+          stay:          plan.stay,
+          itinerary:     plan.itinerary,
+          realityCheck:  plan.realityCheck,
+        }}
+      />
 
       {/* ── Desktop: floating top-right action card ── */}
       <AnimatePresence>
