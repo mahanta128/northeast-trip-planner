@@ -19,11 +19,12 @@ function getSeasonInfo(dateStr: string): { season: string; note: string } {
 
 export async function POST(req: NextRequest) {
   const {
-    origin, days, budget, budgetRange, budgetStyle, vibes, travelStyle, travelers = 2,
+    origin, destination = "Northeast India", days, budget, budgetRange, budgetStyle, vibes, travelStyle, travelers = 2,
     startDate, endDate,
     seasonName, seasonNote,
     permitRequired, permitName,
     festivals = [],
+    inspirationLocations = [],
   } = await req.json();
 
   if (!origin || !days || !budget) {
@@ -58,9 +59,18 @@ export async function POST(req: NextRequest) {
     ? `\nFestival overlap: ${(festivals as string[]).join(", ")} occurs during this travel window — consider recommending it if timing aligns.`
     : "";
 
+  const inspirationList: { name: string; state?: string; category?: string }[] =
+    Array.isArray(inspirationLocations) ? inspirationLocations : [];
+
+  const inspirationLine = inspirationList.length
+    ? `\nTraveller's saved inspiration — they specifically want to visit these places (from Instagram): ${inspirationList
+        .map((l) => `${l.name}${l.state ? ` (${l.state})` : ""}`)
+        .join(", ")}. Prioritise these locations in the itinerary wherever they fit a realistic, geographically sane route. Do NOT force in every single one if the route or day count makes it unrealistic — pick the subset that fits best and build the plan around them instead of a generic route.`
+    : "";
+
   const prompt = `You are a Northeast India travel expert helping domestic Indian travellers.
 
-Generate a realistic trip plan for ${travelerLine} from ${origin} to their chosen destination, travelling for ${days} days, budget: ${budgetLine} (per person), travel vibes: ${vibeList}, travel style: ${travelStyle || "Private / Solo"}.${dateContext}${permitLine}${festivalLine}
+Generate a realistic trip plan for ${travelerLine} from ${origin} to their chosen destination, travelling for ${days} days, budget: ${budgetLine} (per person), travel vibes: ${vibeList}, travel style: ${travelStyle || "Private / Solo"}.${dateContext}${permitLine}${festivalLine}${inspirationLine}
 
 Return ONLY valid JSON. No markdown. No text outside the JSON.
 
@@ -96,7 +106,8 @@ Return ONLY valid JSON. No markdown. No text outside the JSON.
       "avoidThis": ""
     }
   ],
-  "realityCheck": ["", "", "", ""]
+  "realityCheck": ["", "", "", ""],
+  "inspirationNote": ""
 }
 
 Strict field rules:
@@ -110,7 +121,7 @@ tripFit:
 - summary: 2–3 words. Example: "Great Match", "Slightly Rushed", "Good Fit".
 - reasons: 3 strings. Start each with "✓" for positives or "⚠" for caveats. Max 8 words each.
 
-transport: array of journey legs from ${origin} to Meghalaya.
+transport: array of journey legs from ${origin} to ${destination}.
 - mode: single emoji (✈ 🚂 🚖 🚌 etc.)
 - leg: "City → City" format only.
 - duration: travel time or empty string if not applicable.
@@ -145,6 +156,8 @@ Traveler-specific rules for ${travelerLine}:
 - Couple (2): comfortable stays, private or shared cabs, café meals.
 - Small group (3–5): shared SUVs, twin/triple rooms, split costs on activities.
 - Large group (6+): private vehicle hire mandatory, villa or multi-room stays where practical, group discounts on entry fees.
+
+inspirationNote: ${inspirationList.length ? `1 sentence. If any of the traveller's saved inspiration places (${inspirationList.map((l) => l.name).join(", ")}) could not reasonably be included, name which ones and briefly say why. If all were included, say so. Max 20 words.` : `Leave as empty string "" — no inspiration locations were provided.`}
 
 Banned words: breathtaking, vibrant, nestled, gem, immerse, stunning, lush, picturesque, charming, paradise, amazing, wonderful, beautiful.
 All trips must route through Guwahati.`;

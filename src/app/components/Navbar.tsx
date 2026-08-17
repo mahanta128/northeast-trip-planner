@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 export default function Navbar() {
@@ -5,8 +7,17 @@ export default function Navbar() {
     <nav className="absolute top-0 inset-x-0 z-50 print-hide">
       <div className="flex items-center justify-between px-6 sm:px-8 pt-5">
 
-        {/* Logo — standalone floating circle */}
-        <Link href="/" className="shrink-0 block">
+        {/* Logo — standalone floating circle — always takes user home */}
+        <Link
+          href="/"
+          className="shrink-0 block"
+          onClick={(e) => {
+            if (typeof window !== "undefined" && window.location.pathname === "/") {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          }}
+        >
           <div
             className="w-12 h-12 rounded-full bg-white flex items-center justify-center overflow-hidden"
             style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.08)" }}

@@ -16,12 +16,25 @@ import {
   type BudgetTier, type ComputedBudget, type SeasonData, type PermitData, type FestivalData,
 } from "../lib/tripData";
 import { meghalayaKnowledge } from "../lib/meghalaya";
+import { resolveCoords } from "../lib/geo";
+import { useInspirationStore } from "../lib/inspirationStore";
+import type { InspirationItem, ExtractedLocation } from "@/lib/inspiration/types";
+import { parseInstagramUrl } from "@/lib/integrations/instagram/parseUrl";
 
 const JourneyMap = dynamic(() => import("./JourneyMap"), {
   ssr: false,
   loading: () => (
     <div className="h-full flex items-center justify-center bg-[#F4F7FD] animate-pulse rounded-b-3xl">
       <span className="text-[12px] text-[#A8B5C8] font-medium">Loading map…</span>
+    </div>
+  ),
+});
+
+const InspirationMap = dynamic(() => import("./InspirationMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-white/5 animate-pulse">
+      <span className="text-[12px] text-white/40 font-medium">Loading map…</span>
     </div>
   ),
 });
@@ -35,14 +48,34 @@ const DESTINATIONS = [
     img: "/meghalaya-living-root-bridge.jpg",
   },
   {
-    name: "Arunachal Pradesh", short: "Arunachal", icon: "mountain", active: false,
+    name: "Arunachal Pradesh", short: "Arunachal", icon: "mountain", active: true,
     subtitle: "Dawn-lit Mountains",
     img: "https://images.unsplash.com/photo-1672399444836-3f2d667ded8e?auto=format&fit=crop&w=800&q=80",
   },
   {
-    name: "Sikkim", short: "Sikkim", icon: "snowflake", active: false,
+    name: "Sikkim", short: "Sikkim", icon: "snowflake", active: true,
     subtitle: "Mystic Himalayas",
     img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80",
+  },
+  {
+    name: "Assam", short: "Assam", icon: "leaf", active: true,
+    subtitle: "Garden of the East",
+    img: "/assam.png",
+  },
+  {
+    name: "Manipur", short: "Manipur", icon: "waves", active: true,
+    subtitle: "Jewel of the East",
+    img: "/manipur.png",
+  },
+  {
+    name: "Mizoram", short: "Mizoram", icon: "mountain", active: true,
+    subtitle: "Blue Mountain Serenity",
+    img: "/mizoram.jpg",
+  },
+  {
+    name: "Nagaland", short: "Nagaland", icon: "flame", active: true,
+    subtitle: "Land of Festivals",
+    img: "https://images.unsplash.com/photo-1508193638397-1c4234db14d8?auto=format&fit=crop&w=800&q=80",
   },
 ];
 
@@ -112,6 +145,7 @@ interface TripPlan {
   budget: { transport: string; stay: string; food: string; localTravel: string };
   itinerary: { day: number; location: string; highlights: string[]; localTip?: string; hiddenGem?: string; avoidThis?: string }[];
   realityCheck: string[];
+  inspirationNote?: string;
 }
 
 const INITIAL: FormState = {
@@ -134,6 +168,7 @@ interface TripContext {
   permit: PermitData;
   festivals: FestivalData[];
   travelStyle: string;
+  inspirationLocations?: InspirationItem[];
 }
 
 /* ─── Divider ─────────────────────────────────────────────── */
@@ -488,6 +523,12 @@ function getDayNote(location: string, highlights: string[], realityCheck: string
   return null;
 }
 
+function matchesInspiration(dayLocation: string, item: InspirationItem): boolean {
+  const a = dayLocation.toLowerCase();
+  const b = item.locationName.toLowerCase();
+  return a.includes(b) || b.includes(a);
+}
+
 /* ─── Destination Hero ─────────────────────────────────────── */
 
 interface DestHeroTheme {
@@ -556,6 +597,70 @@ const DEST_HERO_THEMES: Record<string, DestHeroTheme> = {
     terrainNear: "rgba(4,10,22,0.90)",
     overlayBottom: "rgba(3,6,14,0.97)",
   },
+  Assam: {
+    tagline: "Garden of the East",
+    gradient: "linear-gradient(162deg, #071410 0%, #0E2018 42%, #1A2808 72%, #070E05 100%)",
+    orb1: "radial-gradient(circle, rgba(130,170,30,0.50) 0%, transparent 68%)",
+    orb2: "radial-gradient(circle, rgba(200,140,20,0.28) 0%, transparent 68%)",
+    mistColor: "radial-gradient(ellipse, rgba(160,200,40,0.20) 0%, transparent 68%)",
+    textAccent: "#BEF264",
+    badgeBg: "rgba(132,204,22,0.12)",
+    badgeBorder: "rgba(132,204,22,0.26)",
+    highlights: ["Kaziranga", "Majuli Island", "Kamakhya Temple", "Tea Gardens"],
+    terrain: "hills",
+    terrainFar:  "rgba(28,52,10,0.52)",
+    terrainMid:  "rgba(18,36,6,0.72)",
+    terrainNear: "rgba(8,18,3,0.90)",
+    overlayBottom: "rgba(4,9,2,0.97)",
+  },
+  Manipur: {
+    tagline: "Jewel of the East",
+    gradient: "linear-gradient(162deg, #0A0818 0%, #140C28 42%, #0C1620 72%, #060810 100%)",
+    orb1: "radial-gradient(circle, rgba(120,60,190,0.48) 0%, transparent 68%)",
+    orb2: "radial-gradient(circle, rgba(40,120,160,0.28) 0%, transparent 68%)",
+    mistColor: "radial-gradient(ellipse, rgba(140,80,220,0.18) 0%, transparent 68%)",
+    textAccent: "#C4B5FD",
+    badgeBg: "rgba(139,92,246,0.12)",
+    badgeBorder: "rgba(139,92,246,0.26)",
+    highlights: ["Loktak Lake", "Ima Keithel", "Shirui Lily", "Keibul Lamjao"],
+    terrain: "hills",
+    terrainFar:  "rgba(24,12,48,0.52)",
+    terrainMid:  "rgba(16,8,32,0.72)",
+    terrainNear: "rgba(8,4,18,0.90)",
+    overlayBottom: "rgba(4,2,10,0.97)",
+  },
+  Mizoram: {
+    tagline: "Land of Blue Mountains",
+    gradient: "linear-gradient(162deg, #040C1C 0%, #081428 42%, #0A1830 72%, #040A1A 100%)",
+    orb1: "radial-gradient(circle, rgba(30,80,180,0.50) 0%, transparent 68%)",
+    orb2: "radial-gradient(circle, rgba(60,140,220,0.22) 0%, transparent 68%)",
+    mistColor: "radial-gradient(ellipse, rgba(50,110,200,0.20) 0%, transparent 68%)",
+    textAccent: "#BAE6FD",
+    badgeBg: "rgba(56,189,248,0.12)",
+    badgeBorder: "rgba(56,189,248,0.26)",
+    highlights: ["Phawngpui Peak", "Vantawng Falls", "Aizawl", "Champhai"],
+    terrain: "peaks",
+    terrainFar:  "rgba(10,22,52,0.52)",
+    terrainMid:  "rgba(6,14,36,0.72)",
+    terrainNear: "rgba(3,7,20,0.90)",
+    overlayBottom: "rgba(2,4,12,0.97)",
+  },
+  Nagaland: {
+    tagline: "Land of Festivals",
+    gradient: "linear-gradient(162deg, #180806 0%, #280E08 42%, #1C1006 72%, #100604 100%)",
+    orb1: "radial-gradient(circle, rgba(200,60,20,0.48) 0%, transparent 68%)",
+    orb2: "radial-gradient(circle, rgba(200,130,20,0.24) 0%, transparent 68%)",
+    mistColor: "radial-gradient(ellipse, rgba(220,80,30,0.18) 0%, transparent 68%)",
+    textAccent: "#FCA5A5",
+    badgeBg: "rgba(239,68,68,0.12)",
+    badgeBorder: "rgba(239,68,68,0.26)",
+    highlights: ["Hornbill Festival", "Kohima", "Dzukou Valley", "Naga Heritage Village"],
+    terrain: "peaks",
+    terrainFar:  "rgba(36,10,6,0.52)",
+    terrainMid:  "rgba(24,6,4,0.72)",
+    terrainNear: "rgba(12,3,2,0.90)",
+    overlayBottom: "rgba(6,2,1,0.97)",
+  },
 };
 
 /* ─── Destination Mood System ─────────────────────────────── */
@@ -605,6 +710,50 @@ const MOOD_THEMES: Record<string, MoodTheme> = {
     accentColor: "#1A4BAF",
     accentLight: "#EBF1FB",
     formGlow:    "0 32px 120px rgba(26,75,175,0.16), 0 8px 32px rgba(26,75,175,0.08)",
+  },
+  Assam: {
+    moodLabel:   "Wild & Golden",
+    moodTagline: "Lush · Wild · Timeless",
+    pageBg:      "#EDF4E8",
+    pageGlow:    "radial-gradient(ellipse 100% 45% at 50% 0%, rgba(101,163,13,0.08) 0%, transparent 100%)",
+    cardBorder:  "#D0E8C0",
+    cardTint:    "#F5FAF0",
+    accentColor: "#4D7C0F",
+    accentLight: "#ECFCCB",
+    formGlow:    "0 32px 120px rgba(77,124,15,0.16), 0 8px 32px rgba(77,124,15,0.08)",
+  },
+  Manipur: {
+    moodLabel:   "Lake & Legend",
+    moodTagline: "Serene · Cultural · Vibrant",
+    pageBg:      "#EEE8F8",
+    pageGlow:    "radial-gradient(ellipse 100% 45% at 50% 0%, rgba(109,40,217,0.07) 0%, transparent 100%)",
+    cardBorder:  "#D8C8F0",
+    cardTint:    "#F8F5FD",
+    accentColor: "#6D28D9",
+    accentLight: "#EDE9FE",
+    formGlow:    "0 32px 120px rgba(109,40,217,0.14), 0 8px 32px rgba(109,40,217,0.07)",
+  },
+  Mizoram: {
+    moodLabel:   "Blue Mountain Calm",
+    moodTagline: "Peaceful · Clean · Scenic",
+    pageBg:      "#E8EFF8",
+    pageGlow:    "radial-gradient(ellipse 100% 45% at 50% 0%, rgba(14,116,144,0.07) 0%, transparent 100%)",
+    cardBorder:  "#C8DDEF",
+    cardTint:    "#F2F8FD",
+    accentColor: "#0E7490",
+    accentLight: "#E0F2FE",
+    formGlow:    "0 32px 120px rgba(14,116,144,0.15), 0 8px 32px rgba(14,116,144,0.07)",
+  },
+  Nagaland: {
+    moodLabel:   "Warrior Spirit",
+    moodTagline: "Bold · Festive · Authentic",
+    pageBg:      "#F5EAE8",
+    pageGlow:    "radial-gradient(ellipse 100% 45% at 50% 0%, rgba(185,28,28,0.07) 0%, transparent 100%)",
+    cardBorder:  "#EDD0CC",
+    cardTint:    "#FDF5F4",
+    accentColor: "#B91C1C",
+    accentLight: "#FEE2E2",
+    formGlow:    "0 32px 120px rgba(185,28,28,0.14), 0 8px 32px rgba(185,28,28,0.07)",
   },
 };
 
@@ -947,6 +1096,7 @@ function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; co
   const scoreDisplay = scoreNum > 10 ? `${scoreNum}%` : `${scoreNum * 10}%`;
   const [openDay,    setOpenDay]    = useState<number>(plan.itinerary[0]?.day ?? 1);
   const [showCTA,    setShowCTA]    = useState(false);
+  const [inspirationBannerDismissed, setInspirationBannerDismissed] = useState(false);
   const [copied,     setCopied]     = useState(false);
   const [sharing,    setSharing]    = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -1042,6 +1192,51 @@ function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; co
             {context?.destination ?? "Northeast India"}{context?.days ? ` · ${context.days} day${context.days !== 1 ? "s" : ""}` : ""}
           </span>
         </motion.div>
+
+        {/* ── Inspiration fit banner ── */}
+        {context?.inspirationLocations && context.inspirationLocations.length > 0 && !inspirationBannerDismissed && (() => {
+          const included = context.inspirationLocations!.filter((l) =>
+            plan.itinerary.some((d) => matchesInspiration(d.location, l))
+          );
+          const dropped = context.inspirationLocations!.filter((l) => !included.includes(l));
+          if (dropped.length === 0) return null;
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="rounded-2xl border px-5 py-4"
+              style={{ background: "rgba(88,199,178,0.07)", borderColor: "rgba(88,199,178,0.24)" }}
+            >
+              <p className="text-[13px] font-semibold text-[#0B1C1A]">
+                We found more places than can comfortably fit into your trip. Here are the places I&apos;d prioritise.
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {included.map((l) => (
+                  <span key={l.id} className="text-[11.5px] font-medium text-[#0B1C1A] bg-white rounded-full px-2.5 py-1 border" style={{ borderColor: "rgba(88,199,178,0.30)" }}>
+                    ✓ {l.locationName}
+                  </span>
+                ))}
+                {dropped.map((l) => (
+                  <span key={l.id} className="text-[11.5px] font-medium text-[#6B7280] bg-white/70 border border-[#DDE8F7] rounded-full px-2.5 py-1 line-through decoration-[#C8D9F5]">
+                    {l.locationName}
+                  </span>
+                ))}
+              </div>
+              {plan.inspirationNote && (
+                <p className="text-[12px] text-[#4B5563] font-light mt-2.5">{plan.inspirationNote}</p>
+              )}
+              <button
+                type="button"
+                onClick={() => setInspirationBannerDismissed(true)}
+                className="mt-3 text-[12px] font-semibold"
+                style={{ color: "#3FA890" }}
+              >
+                Continue →
+              </button>
+            </motion.div>
+          );
+        })()}
 
         {/* ── Cinematic Destination Hero ── */}
         <DestinationHero plan={plan} context={context} onReset={onReset} />
@@ -1448,6 +1643,7 @@ function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; co
             const ts     = THEME_STYLES[theme] ?? THEME_STYLES.Explore;
             const [morning, afternoon, evening] = distributeHighlights(day.highlights);
             const note   = getDayNote(day.location, day.highlights, plan.realityCheck);
+            const fromInspiration = context?.inspirationLocations?.some((l) => matchesInspiration(day.location, l)) ?? false;
             const slots  = [
               { icon: "morning",   label: "Morning",   items: morning },
               { icon: "afternoon", label: "Afternoon", items: afternoon },
@@ -1479,9 +1675,19 @@ function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; co
                     </div>
                     <div className="flex flex-col gap-1 min-w-0">
                       <p className="text-[0.9375rem] font-bold text-[#1C2333] leading-tight truncate">{day.location}</p>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border w-fit leading-none ${ts.bg} ${ts.text} ${ts.border}`}>
-                        {theme}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border w-fit leading-none ${ts.bg} ${ts.text} ${ts.border}`}>
+                          {theme}
+                        </span>
+                        {fromInspiration && (
+                          <span
+                            className="text-[9px] font-bold px-2 py-0.5 rounded-full border w-fit leading-none"
+                            style={{ background: "rgba(88,199,178,0.12)", color: "#3FA890", borderColor: "rgba(88,199,178,0.30)" }}
+                          >
+                            ★ From your inspiration
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <motion.div
@@ -1756,18 +1962,576 @@ function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; co
   );
 }
 
+/* ─── Import Inspiration ──────────────────────────────────── */
+
+type ImportStage = "idle" | "loading" | "review" | "added";
+
+interface ImportNotice {
+  kind: "not_connected" | "invalid" | "empty" | "error";
+  message: string;
+  nextStep?: string;
+}
+
+const LOADING_MESSAGES = [
+  "Finding travel context…",
+  "Identifying places…",
+  "Checking Northeast destinations…",
+  "Building your inspiration list…",
+];
+
+/**
+ * Self-contained so the rotation timer starts fresh on mount (i.e. each time
+ * the parent switches to stage "loading") — no need to reset state via an
+ * effect keyed on a prop, which would call setState synchronously in the
+ * effect body.
+ */
+function AnalyzingPanel() {
+  const [msgIdx, setMsgIdx] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setMsgIdx((i) => (i + 1) % LOADING_MESSAGES.length), 1600);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div
+      className="rounded-[28px] border border-white/8 p-7 md:p-10 flex flex-col items-center text-center gap-3"
+      style={{ background: "rgba(255,255,255,0.04)" }}
+    >
+      <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#58C7B2" strokeWidth="2.5" strokeOpacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="#58C7B2" strokeWidth="2.5" strokeLinecap="round"/></svg>
+      <h3 className="text-[1.1rem] font-bold text-white mt-1">Analyzing your inspiration…</h3>
+      <p className="text-[12.5px] text-white/45 font-light">{LOADING_MESSAGES[msgIdx]}</p>
+    </div>
+  );
+}
+
+function ImportInspirationView({
+  onPlanFromInspiration,
+}: {
+  onPlanFromInspiration: (items: InspirationItem[]) => void;
+}) {
+  const { items, hydrated, addItems, removeItem } = useInspirationStore();
+
+  const [url, setUrl]               = useState("");
+  const [stage, setStage]           = useState<ImportStage>("idle");
+  const [candidates, setCandidates] = useState<ExtractedLocation[]>([]);
+  const [selected, setSelected]     = useState<Set<number>>(new Set());
+  const [manualIndices, setManualIndices] = useState<Set<number>>(new Set());
+  const [sourceUrl, setSourceUrl]   = useState("");
+  const [notice, setNotice]         = useState<ImportNotice | null>(null);
+  const [showMap, setShowMap]       = useState(false);
+  const [lastAdded, setLastAdded]   = useState<InspirationItem[]>([]);
+
+  const [manualOpen, setManualOpen]   = useState(false);
+  const [manualName, setManualName]   = useState("");
+  const [manualBusy, setManualBusy]   = useState(false);
+  const [manualError, setManualError] = useState("");
+
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = url.trim();
+    if (!trimmed || stage === "loading") return;
+
+    // Client-side validation first — never call the AI API for an obviously
+    // invalid URL.
+    if (!parseInstagramUrl(trimmed)) {
+      setNotice({ kind: "invalid", message: "Please enter a valid Instagram link." });
+      return;
+    }
+
+    setStage("loading");
+    setNotice(null);
+    try {
+      const res  = await fetch("/api/inspiration/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const data = await res.json();
+
+      if (data.status === "success" && Array.isArray(data.locations) && data.locations.length) {
+        const locs: ExtractedLocation[] = data.locations;
+        setCandidates(locs);
+        setSelected(new Set(locs.map((l, i) => (l.inCoverage ? i : -1)).filter((i) => i >= 0)));
+        setManualIndices(new Set());
+        setSourceUrl(data.sourceUrl || trimmed);
+        setStage("review");
+      } else if (data.status === "not_connected") {
+        setNotice({ kind: "not_connected", message: data.message, nextStep: data.nextStep });
+        setStage("idle");
+      } else if (data.status === "no_locations") {
+        setNotice({ kind: "empty", message: data.message, nextStep: data.nextStep });
+        setStage("idle");
+      } else if (data.status === "invalid_url") {
+        setNotice({ kind: "invalid", message: data.message });
+        setStage("idle");
+      } else {
+        setNotice({ kind: "error", message: data.message || "Something went wrong.", nextStep: data.nextStep });
+        setStage("idle");
+      }
+    } catch {
+      setNotice({ kind: "error", message: "Network error. Please try again." });
+      setStage("idle");
+    }
+  }
+
+  function toggle(i: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelected(new Set(candidates.map((_, i) => i)));
+  }
+
+  function deselectAll() {
+    setSelected(new Set());
+  }
+
+  async function handleManualAdd(e: React.FormEvent) {
+    e.preventDefault();
+    const name = manualName.trim();
+    if (!name || manualBusy) return;
+    setManualBusy(true);
+    setManualError("");
+    try {
+      const res = await fetch("/api/inspiration/normalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (data.status === "success" && data.location) {
+        const idx = candidates.length;
+        setCandidates((prev) => [...prev, data.location]);
+        setSelected((prev) => new Set(prev).add(idx));
+        setManualIndices((prev) => new Set(prev).add(idx));
+        if (stage !== "review") setStage("review");
+        setManualName("");
+        setManualOpen(false);
+      } else {
+        setManualError(data.message || "Could not add this place.");
+      }
+    } catch {
+      setManualError("Network error. Please try again.");
+    } finally {
+      setManualBusy(false);
+    }
+  }
+
+  function handleAddSelected() {
+    const createdAt = new Date().toISOString();
+    const toAdd: InspirationItem[] = candidates
+      .map((c, i) => ({ c, i }))
+      .filter(({ i }) => selected.has(i))
+      .map(({ c, i }) => {
+        const coords = resolveCoords(c.locationName) ?? resolveCoords(c.city);
+        const isManual = manualIndices.has(i);
+        return {
+          id: `insp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+          userId: null,
+          sourceType: isManual ? ("manual" as const) : ("instagram" as const),
+          sourceUrl: isManual ? "" : sourceUrl,
+          title: c.locationName,
+          locationName: c.locationName,
+          city: c.city,
+          state: c.state,
+          category: c.category,
+          description: c.description,
+          latitude: coords ? coords[0] : null,
+          longitude: coords ? coords[1] : null,
+          confidence: c.confidence,
+          selected: true,
+          createdAt,
+        };
+      });
+    addItems(toAdd);
+    setLastAdded(toAdd);
+    setCandidates([]);
+    setSelected(new Set());
+    setManualIndices(new Set());
+    setUrl("");
+    setStage(toAdd.length > 0 ? "added" : "idle");
+  }
+
+  function handleCancelReview() {
+    setCandidates([]);
+    setSelected(new Set());
+    setManualIndices(new Set());
+    setStage("idle");
+  }
+
+  function handleKeepExploring() {
+    setLastAdded([]);
+    setStage("idle");
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto flex flex-col gap-6">
+
+      {/* ── Import from Instagram ── */}
+      <div
+        className="rounded-[28px] border p-7 md:p-10 relative overflow-hidden"
+        style={{ background: "#112723", borderColor: "rgba(88,199,178,0.25)" }}
+      >
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(88,199,178,0.10) 0%, transparent 70%)", filter: "blur(52px)" }} />
+
+        <div className="flex items-center gap-2.5 mb-4 relative">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#58C7B2" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.5"/><circle cx="17.5" cy="6.5" r="1" fill="#58C7B2" stroke="none"/></svg>
+          <p className="text-[9.5px] font-bold uppercase tracking-[0.20em]" style={{ color: "rgba(88,199,178,0.75)" }}>Import from Instagram</p>
+        </div>
+
+        <p className="text-[13px] text-white/48 font-light leading-relaxed max-w-lg mb-7 relative">
+          Paste an Instagram Reel link and Rhinotrek will identify the places worth adding to your journey.
+        </p>
+
+        <form onSubmit={handleImport} className="flex flex-col gap-3 relative">
+          <label htmlFor="insp-url" className="text-[12px] font-semibold text-white/55">
+            Paste Instagram Reel URL
+          </label>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <input
+              id="insp-url"
+              type="url"
+              required
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://www.instagram.com/reel/..."
+              disabled={stage === "loading"}
+              className="flex-1 rounded-2xl border px-5 py-4 text-sm text-white placeholder-white/25 outline-none transition disabled:opacity-60"
+              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(88,199,178,0.22)" }}
+            />
+            <button
+              type="submit"
+              disabled={stage === "loading" || !url.trim()}
+              className="inline-flex items-center justify-center gap-2.5 rounded-2xl py-4 px-7 text-[14.5px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed"
+              style={{
+                background: stage === "loading" || !url.trim() ? "rgba(88,199,178,0.14)" : "#58C7B2",
+                color: stage === "loading" || !url.trim() ? "rgba(88,199,178,0.55)" : "#0B1C1A",
+              }}
+            >
+              {stage === "loading" ? (
+                <>
+                  <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  Analyze Inspiration
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+
+        {/* Manual fallback — always available, not just after a failed import */}
+        {stage !== "loading" && (
+          <div className="mt-5 relative">
+            {!manualOpen ? (
+              <button
+                type="button"
+                onClick={() => setManualOpen(true)}
+                className="text-[12.5px] font-semibold text-white/40 hover:text-white/70 transition-colors underline underline-offset-2 decoration-white/20"
+              >
+                Can&apos;t find your place? Add it manually
+              </button>
+            ) : (
+              <form onSubmit={handleManualAdd} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <input
+                  type="text"
+                  autoFocus
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder="e.g. Ziro Valley"
+                  disabled={manualBusy}
+                  className="flex-1 rounded-xl border px-4 py-2.5 text-[13px] text-white placeholder-white/25 outline-none disabled:opacity-60"
+                  style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(88,199,178,0.18)" }}
+                />
+                <button
+                  type="submit"
+                  disabled={manualBusy || !manualName.trim()}
+                  className="rounded-xl px-4 py-2.5 text-[12.5px] font-semibold whitespace-nowrap disabled:cursor-not-allowed"
+                  style={{
+                    background: manualBusy || !manualName.trim() ? "rgba(88,199,178,0.14)" : "#58C7B2",
+                    color: manualBusy || !manualName.trim() ? "rgba(88,199,178,0.5)" : "#0B1C1A",
+                  }}
+                >
+                  {manualBusy ? "Adding…" : "Add"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setManualOpen(false); setManualName(""); setManualError(""); }}
+                  className="text-[12px] font-medium text-white/35 hover:text-white/60 transition-colors"
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
+            {manualError && <p className="text-[11.5px] mt-2" style={{ color: "#F87171" }}>{manualError}</p>}
+          </div>
+        )}
+
+        {/* Notices — always honest: never a fake success state */}
+        {notice && (
+          <div
+            className="mt-5 rounded-2xl px-5 py-4 relative"
+            style={{
+              background: notice.kind === "not_connected" ? "rgba(88,199,178,0.08)" : "rgba(239,68,68,0.06)",
+              border: `1px solid ${notice.kind === "not_connected" ? "rgba(88,199,178,0.24)" : "rgba(239,68,68,0.20)"}`,
+            }}
+          >
+            <p className="text-[13px] font-semibold" style={{ color: notice.kind === "not_connected" ? "#58C7B2" : "#F87171" }}>
+              {notice.kind === "not_connected" ? "Instagram connection required" : notice.message}
+            </p>
+            {notice.nextStep && (
+              <p className="text-[12px] text-white/40 font-light leading-relaxed mt-1.5">{notice.nextStep}</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Analyzing — polished loading state ── */}
+      {stage === "loading" && <AnalyzingPanel />}
+
+      {/* ── Review extracted locations ── */}
+      {stage === "review" && candidates.length > 0 && (
+        <div className="rounded-[28px] border border-white/8 p-7 md:p-10" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div className="flex items-start justify-between flex-wrap gap-3 mb-1.5">
+            <h3 className="text-[1.15rem] font-bold text-white">
+              We found {candidates.length} place{candidates.length === 1 ? "" : "s"}
+            </h3>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={selectAll} className="text-[12px] font-semibold text-white/40 hover:text-white/70 transition-colors">
+                Select all
+              </button>
+              <button type="button" onClick={deselectAll} className="text-[12px] font-semibold text-white/40 hover:text-white/70 transition-colors">
+                Deselect all
+              </button>
+            </div>
+          </div>
+          <p className="text-[12.5px] text-white/40 font-light mb-6">Review and select which ones to save — AI extraction can make mistakes.</p>
+
+          <div className="flex flex-col gap-2.5 mb-7">
+            {candidates.map((c, i) => {
+              const isSelected = selected.has(i);
+              const isManual = manualIndices.has(i);
+              const confidencePct = Math.round(c.confidence * 100);
+              return (
+                <button
+                  key={`${c.locationName}-${i}`}
+                  type="button"
+                  onClick={() => toggle(i)}
+                  className="flex items-start gap-3.5 text-left rounded-2xl border px-4 py-3.5 transition-colors"
+                  style={{
+                    background: isSelected ? "rgba(88,199,178,0.08)" : "rgba(255,255,255,0.02)",
+                    borderColor: isSelected ? "rgba(88,199,178,0.30)" : "rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div
+                    className="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5"
+                    style={{
+                      background: isSelected ? "#58C7B2" : "transparent",
+                      borderColor: isSelected ? "#58C7B2" : "rgba(255,255,255,0.22)",
+                    }}
+                  >
+                    {isSelected && <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l2.5 2.5 4.5-5" stroke="#0B1C1A" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[14px] font-bold text-white">{c.locationName}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}>
+                        {c.category}
+                      </span>
+                      {!c.inCoverage && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(245,158,11,0.14)", color: "#F5B843" }}>
+                          Outside Rhinotrek&apos;s Northeast India scope
+                        </span>
+                      )}
+                      <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.28)" }}>
+                        {isManual ? "added manually" : "via Instagram"} · {confidencePct}% confidence
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-white/40 font-light">
+                      {c.state || "State unknown"}
+                      {c.description ? ` — ${c.description}` : ""}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleAddSelected}
+              disabled={selected.size === 0}
+              className="rounded-2xl px-6 py-3 text-[13.5px] font-semibold transition-colors disabled:cursor-not-allowed"
+              style={{
+                background: selected.size === 0 ? "rgba(88,199,178,0.14)" : "#58C7B2",
+                color: selected.size === 0 ? "rgba(88,199,178,0.5)" : "#0B1C1A",
+              }}
+            >
+              Add Selected Places →
+            </button>
+            <button type="button" onClick={handleCancelReview} className="text-[13px] font-medium text-white/40 hover:text-white/70 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmation — never adds anything without this explicit step having already happened ── */}
+      {stage === "added" && (
+        <div
+          className="rounded-[28px] border p-7 md:p-10 text-center flex flex-col items-center gap-4"
+          style={{ background: "#112723", borderColor: "rgba(88,199,178,0.25)" }}
+        >
+          <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "rgba(88,199,178,0.14)" }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#58C7B2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+          <div>
+            <h3 className="text-[1.2rem] font-bold text-white">Added to your Rhinotrek collection</h3>
+            <p className="text-[13px] text-white/45 font-light mt-1.5">
+              {lastAdded.length} place{lastAdded.length === 1 ? "" : "s"} added
+            </p>
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <button
+              type="button"
+              onClick={() => onPlanFromInspiration(lastAdded)}
+              className="rounded-2xl px-6 py-3 text-[13.5px] font-bold"
+              style={{ background: "#58C7B2", color: "#0B1C1A" }}
+            >
+              Build My Itinerary →
+            </button>
+            <button
+              type="button"
+              onClick={handleKeepExploring}
+              className="text-[13px] font-semibold text-white/50 hover:text-white/80 transition-colors"
+            >
+              Keep Exploring
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── My Inspiration collection ── */}
+      {hydrated && items.length > 0 && (
+        <div className="rounded-[28px] border border-white/8 p-7 md:p-10" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+            <div>
+              <h3 className="text-[1.15rem] font-bold text-white">My Inspiration</h3>
+              <p className="text-[12.5px] text-white/40 font-light mt-1">{items.length} place{items.length === 1 ? "" : "s"} saved</p>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowMap((v) => !v)}
+                className="rounded-full px-4 py-2 text-[12.5px] font-semibold border transition-colors"
+                style={{ borderColor: "rgba(88,199,178,0.28)", color: "#58C7B2", background: showMap ? "rgba(88,199,178,0.12)" : "transparent" }}
+              >
+                {showMap ? "Hide Map" : "View on Map"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onPlanFromInspiration(items)}
+                className="rounded-full px-5 py-2 text-[12.5px] font-bold text-[#0B1C1A]"
+                style={{ background: "#58C7B2" }}
+              >
+                Plan this trip →
+              </button>
+            </div>
+          </div>
+
+          {showMap && (
+            <div className="h-[320px] rounded-2xl overflow-hidden mb-6 border" style={{ borderColor: "rgba(88,199,178,0.18)" }}>
+              <InspirationMap items={items} />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2.5">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 px-4 py-3.5" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <div className="flex flex-col gap-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[14px] font-bold text-white">{item.locationName}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}>
+                      {item.category}
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-white/40 font-light">
+                    {item.state || "Unknown state"}{item.city && item.city !== item.locationName ? ` · ${item.city}` : ""}
+                  </p>
+                  {item.sourceUrl && (
+                    <a
+                      href={item.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11.5px] font-medium inline-flex items-center gap-1 mt-0.5"
+                      style={{ color: "rgba(88,199,178,0.70)" }}
+                    >
+                      View original on Instagram
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 17L17 7M7 7h10v10"/></svg>
+                    </a>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.id)}
+                  aria-label={`Remove ${item.locationName}`}
+                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/6 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Homepage ────────────────────────────────────────────── */
 
 function HomePage({
-  form, setForm, onSubmit, error,
+  form, setForm, onSubmit, error, inspirationLocations, setInspirationLocations,
 }: {
   form: FormState;
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   error: string;
+  inspirationLocations: InspirationItem[];
+  setInspirationLocations: React.Dispatch<React.SetStateAction<InspirationItem[]>>;
 }) {
   const mood = MOOD_THEMES[form.destination] ?? MOOD_THEMES["Meghalaya"]!;
   const [destIdx, setDestIdx] = useState(0);
+  const [mode, setMode] = useState<null | 'planner' | 'import'>(null);
+
+  function handlePlanFromInspiration(items: InspirationItem[]) {
+    setInspirationLocations(items);
+
+    // Seed the planner's destination from the majority state among saved
+    // places, when that state is one of the active planner destinations.
+    const counts: Record<string, number> = {};
+    items.forEach((i) => { if (i.state) counts[i.state] = (counts[i.state] ?? 0) + 1; });
+    const supported = DESTINATIONS.map((d) => d.name);
+    const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const majority = ranked.find(([state]) => supported.includes(state));
+    if (majority) {
+      const idx = DESTINATIONS.findIndex((d) => d.name === majority[0]);
+      if (idx >= 0) {
+        setDestIdx(idx);
+        setForm((f) => ({ ...f, destination: majority[0]! }));
+      }
+    }
+    setMode('planner');
+  }
 
   const tripDays = form.startDate && form.endDate
     ? differenceInCalendarDays(form.endDate, form.startDate) + 1
@@ -1917,63 +2681,133 @@ function HomePage({
         />
 
         {/* ── Main Content ── */}
-        <div className="relative z-10 w-full px-5 sm:px-8 pt-28 pb-16 md:pt-32 md:pb-20">
+        <div className="relative z-10 w-full px-5 sm:px-8">
+          <AnimatePresence mode="wait">
 
-          {/* ── Centered Hero Copy ── */}
-          <div className="max-w-5xl mx-auto text-center mb-14 sm:mb-16">
+            {/* ── CHOICE SCREEN ── */}
+            {mode === null && (
+              <motion.div
+                key="choice"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10, transition: { duration: 0.22 } }}
+                transition={{ duration: 0.44, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="pt-28 pb-20 md:pt-32 md:pb-24"
+              >
+                <div className="flex justify-center mb-8">
+                  <div className="inline-flex items-center gap-2.5 bg-white/7 border border-white/12 text-white/52 text-[10px] font-semibold px-5 py-2.5 rounded-full tracking-[0.22em] uppercase backdrop-blur-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#6DFFB0] shrink-0" />
+                    RHINOTREK · NORTHEAST INDIA
+                  </div>
+                </div>
+                <div className="max-w-4xl mx-auto text-center mb-16">
+                  <h1 className="text-[2.1rem] sm:text-[3.6rem] md:text-[4.75rem] font-bold text-white leading-[1.06] tracking-[-0.025em] mb-5">
+                    How would you like<br />to start your journey?
+                  </h1>
+                  <p className="text-[1rem] sm:text-[1.1rem] text-white/44 max-w-sm mx-auto font-light leading-relaxed">
+                    Choose how you&apos;d like to plan your Northeast India adventure.
+                  </p>
+                </div>
+                <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5">
 
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="mb-8"
-            >
-              <div className="inline-flex items-center gap-2.5 bg-white/7 border border-white/12 text-white/52 text-[10px] font-semibold px-5 py-2.5 rounded-full tracking-[0.22em] uppercase backdrop-blur-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#6DFFB0] shrink-0" />
-                RHINOTREK · NORTHEAST INDIA
-              </div>
-            </motion.div>
+                  {/* Card 1 — Rhinotrek Planner */}
+                  <button
+                    type="button"
+                    onClick={() => setMode('planner')}
+                    className="group text-left rounded-[28px] border p-8 md:p-10 relative overflow-hidden transition-all duration-300 hover:scale-[1.015] active:scale-[0.99]"
+                    style={{
+                      background: "linear-gradient(145deg, #2A171B 0%, #1E0E12 60%, #160A0D 100%)",
+                      border: "1px solid rgba(255,56,92,0.28)",
+                      backdropFilter: "blur(28px)",
+                      WebkitBackdropFilter: "blur(28px)",
+                      boxShadow: "0 4px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,56,92,0.08)",
+                    }}
+                  >
+                    {/* Hover coral glow */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-[28px]" style={{ background: "radial-gradient(ellipse at 20% 15%, rgba(255,56,92,0.14) 0%, transparent 62%)" }} />
+                    {/* Ambient coral tint always present */}
+                    <div className="absolute top-0 left-0 w-48 h-48 pointer-events-none" style={{ background: "radial-gradient(ellipse at 0% 0%, rgba(255,56,92,0.07) 0%, transparent 70%)" }} />
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-7 shrink-0" style={{ background: "rgba(255,56,92,0.14)", border: "1px solid rgba(255,56,92,0.28)" }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="9.5" stroke="#FF385C" strokeWidth="1.6"/>
+                        <path d="M16.24 7.76L14.12 14.12L7.76 16.24L9.88 9.88L16.24 7.76Z" stroke="#FF385C" strokeWidth="1.6" strokeLinejoin="round"/>
+                        <circle cx="12" cy="12" r="1.5" fill="#FF385C"/>
+                      </svg>
+                    </div>
+                    <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] mb-2.5" style={{ color: "rgba(255,56,92,0.60)" }}>Plan from scratch</p>
+                    <h3 className="text-[1.5rem] font-bold text-white tracking-[-0.02em] mb-3 leading-tight">Rhinotrek Planner</h3>
+                    <p className="text-[0.9rem] font-light leading-relaxed mb-9" style={{ color: "rgba(255,230,230,0.62)" }}>
+                      Build a realistic journey from your destination, travel style and budget.
+                    </p>
+                    <div className="inline-flex items-center gap-2.5 rounded-2xl bg-[#FF385C] px-5 py-2.5 text-[13.5px] font-semibold text-white group-hover:bg-[#E0314F] transition-colors duration-200">
+                      Plan from Scratch
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </div>
+                  </button>
 
-            {/* Headline */}
-            <motion.h1
-              initial={{ opacity: 0, y: 26 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.88, delay: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="text-[2rem] sm:text-[4.25rem] md:text-[5.75rem] font-bold text-white leading-[1.02] tracking-[-0.025em] mb-7"
-            >
-              Plan Northeast India<br />
-              <span className="bg-gradient-to-r from-[#E8A44A] via-[#D4884A] to-[#C07030] bg-clip-text text-transparent">
-                Like Someone Local
-              </span>
-            </motion.h1>
+                  {/* Card 2 — Import Inspiration */}
+                  <button
+                    type="button"
+                    onClick={() => setMode('import')}
+                    className="group text-left rounded-[28px] border p-8 md:p-10 relative overflow-hidden transition-all duration-300 hover:scale-[1.015] active:scale-[0.99]"
+                    style={{
+                      background: "linear-gradient(145deg, #112723 0%, #0B1C1A 60%, #081412 100%)",
+                      border: "1px solid rgba(88,199,178,0.25)",
+                      backdropFilter: "blur(28px)",
+                      WebkitBackdropFilter: "blur(28px)",
+                      boxShadow: "0 4px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(88,199,178,0.06)",
+                    }}
+                  >
+                    {/* Hover teal glow */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-[28px]" style={{ background: "radial-gradient(ellipse at 80% 15%, rgba(88,199,178,0.12) 0%, transparent 62%)" }} />
+                    {/* Ambient teal tint always present */}
+                    <div className="absolute top-0 right-0 w-48 h-48 pointer-events-none" style={{ background: "radial-gradient(ellipse at 100% 0%, rgba(88,199,178,0.06) 0%, transparent 70%)" }} />
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-7 shrink-0" style={{ background: "rgba(88,199,178,0.12)", border: "1px solid rgba(88,199,178,0.24)" }}>
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L9.09 8.26L2 9.27L7 14.14L5.82 21.02L12 17.77L18.18 21.02L17 14.14L22 9.27L14.91 8.26L12 2Z" stroke="#58C7B2" strokeWidth="1.6" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] mb-2.5" style={{ color: "rgba(88,199,178,0.55)" }}>Import &amp; discover</p>
+                    <h3 className="text-[1.5rem] font-bold text-white tracking-[-0.02em] mb-3 leading-tight">Import Inspiration</h3>
+                    <p className="text-[0.9rem] font-light leading-relaxed mb-9" style={{ color: "rgba(210,240,236,0.60)" }}>
+                      Already have places saved? Bring your inspiration to Rhinotrek and turn it into a realistic Northeast itinerary.
+                    </p>
+                    <div className="inline-flex items-center gap-2.5 rounded-2xl bg-[#58C7B2] px-5 py-2.5 text-[13.5px] font-semibold text-[#0B1C1A] group-hover:bg-[#4FB6A3] transition-colors duration-200">
+                      Import Inspiration
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="#0B1C1A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </div>
+                  </button>
 
-            {/* Subheadline */}
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.78, delay: 0.32, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="text-[1rem] sm:text-[1.1rem] text-white/46 max-w-xl mx-auto leading-relaxed font-light mb-12 sm:mb-14"
-            >
-              Reality-based itineraries with weather, permits, road intelligence and local travel knowledge.
-            </motion.p>
+                </div>
+              </motion.div>
+            )}
 
-            {/* Trust pills */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.68, delay: 0.50, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="flex items-center justify-center gap-5 sm:gap-8 flex-wrap"
-            >
-              {(["Route Verified", "Weather Aware", "Budget Matched", "Local Intelligence"] as const).map((t) => (
-                <span key={t} className="flex items-center gap-2 text-white/48 text-[11px] sm:text-xs font-medium">
-                  <InlineIcon name="check2" size={10} strokeWidth={2.5} color="#6DFFB0" />
-                  {t}
-                </span>
-              ))}
-            </motion.div>
-
-          </div>
+            {/* ── PLANNER VIEW ── */}
+            {mode === 'planner' && (
+              <motion.div
+                key="planner"
+                initial={{ opacity: 0, y: 22 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.2 } }}
+                transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="pt-24 pb-16 md:pt-28 md:pb-20"
+              >
+                <button
+                  type="button"
+                  onClick={() => setMode(null)}
+                  className="flex items-center gap-2.5 mb-10 text-[13.5px] font-semibold text-white/70 hover:text-white transition-colors duration-200 bg-white/6 hover:bg-white/10 border border-white/10 hover:border-white/18 rounded-full px-4 py-2"
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M10 13L5 8l5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Back
+                </button>
+                <div className="max-w-5xl mx-auto text-center mb-10">
+                  <h2 className="text-[1.7rem] sm:text-[2.6rem] font-bold text-white tracking-[-0.025em] mb-2.5">
+                    Rhinotrek Planner
+                  </h2>
+                  <p className="text-[0.9rem] text-white/38 font-light max-w-sm mx-auto">
+                    Build a realistic Northeast India journey from your dates, budget and travel style.
+                  </p>
+                </div>
 
           {/* ── Planner Card ── */}
           <div
@@ -2009,6 +2843,34 @@ function HomePage({
                     Tell us your dream — we&apos;ll design the rest.
                   </p>
                 </div>
+
+                {/* Pinned inspiration — only shown when arriving via "Plan this trip" */}
+                {inspirationLocations.length > 0 && (
+                  <div
+                    className="mb-8 rounded-2xl border px-5 py-4 flex items-start justify-between gap-4"
+                    style={{ background: "rgba(88,199,178,0.06)", borderColor: "rgba(88,199,178,0.22)" }}
+                  >
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "#3FA890" }}>
+                        Planning from your inspiration
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {inspirationLocations.map((l) => (
+                          <span key={l.id} className="text-[12px] font-medium text-[#1C2333] bg-white border border-[#DDE8F7] rounded-full px-2.5 py-1">
+                            {l.locationName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setInspirationLocations([])}
+                      className="shrink-0 text-[12px] font-semibold text-[#6B7280] hover:text-[#1C2333] transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
 
                 {/* Row 1: Destination Carousel */}
                 <div className="flex flex-col gap-3 mb-9">
@@ -2315,10 +3177,48 @@ function HomePage({
             </motion.div>
           </div>
 
+              </motion.div>
+            )}
+
+            {/* ── IMPORT VIEW ── */}
+            {mode === 'import' && (
+              <motion.div
+                key="import"
+                initial={{ opacity: 0, y: 22 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.2 } }}
+                transition={{ duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="pt-24 pb-20 md:pt-28 md:pb-24"
+              >
+                <button
+                  type="button"
+                  onClick={() => setMode(null)}
+                  className="flex items-center gap-2.5 mb-10 text-[13.5px] font-semibold text-white/70 hover:text-white transition-colors duration-200 bg-white/6 hover:bg-white/10 border border-white/10 hover:border-white/18 rounded-full px-4 py-2"
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M10 13L5 8l5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Back to Rhinotrek
+                </button>
+                <div className="max-w-5xl mx-auto mb-10">
+                  <h2 className="text-[1.7rem] sm:text-[2.6rem] font-bold text-white tracking-[-0.025em] mb-3">
+                    Import Inspiration
+                  </h2>
+                  <p className="text-[0.95rem] text-white/40 font-light max-w-lg leading-relaxed">
+                    Turn your travel inspiration into a real Northeast trip.
+                    <br className="hidden sm:block" />
+                    Paste an Instagram Reel link and Rhinotrek will identify the places worth adding to your journey.
+                  </p>
+                </div>
+                <ImportInspirationView onPlanFromInspiration={handlePlanFromInspiration} />
+              </motion.div>
+            )}
+
+          </AnimatePresence>
         </div>
 
       </section>
 
+      {mode === null && (
+      <>
       {/* ── Reality Layer ── */}
       <section id="how-it-works" className="bg-[#F2EDE8] py-28 px-6 scroll-mt-20">
         <div className="max-w-5xl mx-auto">
@@ -2539,6 +3439,8 @@ function HomePage({
 
         </div>
       </section>
+      </>
+      )}
 
     </div>
   );
@@ -2553,6 +3455,7 @@ export default function TripPlannerForm() {
   const [tripContext, setTripContext]  = useState<TripContext | null>(null);
   const [error, setError]             = useState("");
   const [rhyeOpen, setRhyeOpen]       = useState(false);
+  const [inspirationLocations, setInspirationLocations] = useState<InspirationItem[]>([]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -2578,6 +3481,7 @@ export default function TripPlannerForm() {
       permit:    PERMIT_INFO[form.destination] ?? PERMIT_INFO["Meghalaya"],
       festivals: getFestivals(form.destination, month),
       travelStyle: form.travelStyle,
+      inspirationLocations: inspirationLocations.length ? inspirationLocations : undefined,
     };
 
     const computedBudget = context.budget;
@@ -2610,6 +3514,9 @@ export default function TripPlannerForm() {
           permitRequired: context.permit.required,
           permitName:     context.permit.name,
           festivals:      context.festivals.map((f) => f.name),
+          inspirationLocations: inspirationLocations.map((l) => ({
+            name: l.locationName, state: l.state, category: l.category,
+          })),
         }),
       });
       const data = await res.json();
@@ -2626,6 +3533,7 @@ export default function TripPlannerForm() {
     setPlan(null);
     setTripContext(null);
     setForm(INITIAL);
+    setInspirationLocations([]);
   }
 
   const rhyeTripContext: Record<string, unknown> = plan && tripContext ? {
@@ -2646,6 +3554,7 @@ export default function TripPlannerForm() {
     stay:         plan.stay,
     itinerary:    plan.itinerary,
     realityCheck: plan.realityCheck,
+    inspirationLocations: tripContext.inspirationLocations?.map((l) => l.locationName),
   } : {};
 
   return (
@@ -2654,7 +3563,14 @@ export default function TripPlannerForm() {
         ? <LoadingState />
         : plan
         ? <TripResults plan={plan} context={tripContext} onReset={handleReset} onAskRhye={() => setRhyeOpen(true)} />
-        : <HomePage form={form} setForm={setForm} onSubmit={handleSubmit} error={error} />
+        : <HomePage
+            form={form}
+            setForm={setForm}
+            onSubmit={handleSubmit}
+            error={error}
+            inspirationLocations={inspirationLocations}
+            setInspirationLocations={setInspirationLocations}
+          />
       }
 
       {/* ── RHYE Floating Action Button ── */}
