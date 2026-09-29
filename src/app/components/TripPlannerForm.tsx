@@ -18,7 +18,7 @@ import {
 import { meghalayaKnowledge } from "../lib/meghalaya";
 import { resolveCoords } from "../lib/geo";
 import { useInspirationStore } from "../lib/inspirationStore";
-import type { InspirationItem, ExtractedLocation } from "@/lib/inspiration/types";
+import { SOURCE_TYPE_LABELS, type InspirationItem, type ExtractedLocation } from "@/lib/inspiration/types";
 import { parseInstagramUrl } from "@/lib/integrations/instagram/parseUrl";
 
 const JourneyMap = dynamic(() => import("./JourneyMap"), {
@@ -1965,18 +1965,22 @@ function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; co
 /* ─── Import Inspiration ──────────────────────────────────── */
 
 type ImportStage = "idle" | "loading" | "review" | "added";
+type ImportMethod = "screenshot" | "notes" | "instagram" | "manual";
 
 interface ImportNotice {
-  kind: "not_connected" | "invalid" | "empty" | "error";
+  kind: "invalid" | "unsupported" | "too_large" | "empty" | "error";
   message: string;
   nextStep?: string;
+  /** Shows inline "Paste the caption" / "Add a place manually" recovery actions. */
+  offerFallback?: boolean;
 }
 
+const LOADING_HEADLINE = "Finding places in your inspiration…";
 const LOADING_MESSAGES = [
-  "Finding travel context…",
-  "Identifying places…",
+  "Reading your inspiration…",
+  "Identifying travel locations…",
   "Checking Northeast destinations…",
-  "Building your inspiration list…",
+  "Preparing your list…",
 ];
 
 /**
@@ -1999,9 +2003,93 @@ function AnalyzingPanel() {
       style={{ background: "rgba(255,255,255,0.04)" }}
     >
       <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#58C7B2" strokeWidth="2.5" strokeOpacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="#58C7B2" strokeWidth="2.5" strokeLinecap="round"/></svg>
-      <h3 className="text-[1.1rem] font-bold text-white mt-1">Analyzing your inspiration…</h3>
+      <h3 className="text-[1.1rem] font-bold text-white mt-1">{LOADING_HEADLINE}</h3>
       <p className="text-[12.5px] text-white/45 font-light">{LOADING_MESSAGES[msgIdx]}</p>
     </div>
+  );
+}
+
+const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+const MAX_IMAGE_BYTES_CLIENT = 6 * 1024 * 1024; // keep in sync with the server-side cap in /api/inspiration/analyze
+
+function TabGlyph({ method, active }: { method: ImportMethod; active: boolean }) {
+  const color = active ? "#58C7B2" : "rgba(255,255,255,0.42)";
+  if (method === "screenshot") {
+    return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="15" rx="2.5"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 5l1.6-2h4.8L16 5"/></svg>;
+  }
+  if (method === "notes") {
+    return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M9 13h6M9 17h6"/></svg>;
+  }
+  if (method === "instagram") {
+    return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.5"/><circle cx="17.5" cy="6.5" r="1" fill={color} stroke="none"/></svg>;
+  }
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-7.58 7-12.5A7 7 0 0 0 5 9.5C5 14.42 12 22 12 22Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>;
+}
+
+function MethodTabs({
+  active, onChange, disabled,
+}: {
+  active: ImportMethod;
+  onChange: (m: ImportMethod) => void;
+  disabled: boolean;
+}) {
+  const tabs: { key: ImportMethod; label: string }[] = [
+    { key: "screenshot", label: "Upload Screenshot" },
+    { key: "notes", label: "Paste Caption / Notes" },
+    { key: "instagram", label: "Add Instagram Link" },
+    { key: "manual", label: "Add Place Manually" },
+  ];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      {tabs.map((t) => {
+        const isActive = active === t.key;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(t.key)}
+            className="flex flex-col items-center gap-2 rounded-2xl border px-3 py-4 text-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              background: isActive ? "rgba(88,199,178,0.10)" : "rgba(255,255,255,0.03)",
+              borderColor: isActive ? "rgba(88,199,178,0.35)" : "rgba(255,255,255,0.08)",
+            }}
+          >
+            <TabGlyph method={t.key} active={isActive} />
+            <span className="text-[11px] font-semibold leading-tight" style={{ color: isActive ? "#58C7B2" : "rgba(255,255,255,0.55)" }}>
+              {t.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Shared teal CTA used by the screenshot + notes submit buttons. */
+function FindPlacesButton({ disabled, loading, className = "" }: { disabled: boolean; loading: boolean; className?: string }) {
+  return (
+    <button
+      type="submit"
+      disabled={disabled}
+      className={`inline-flex items-center justify-center gap-2.5 rounded-2xl py-3.5 px-7 text-[14px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed ${className}`}
+      style={{
+        background: disabled ? "rgba(88,199,178,0.14)" : "#58C7B2",
+        color: disabled ? "rgba(88,199,178,0.55)" : "#0B1C1A",
+      }}
+    >
+      {loading ? (
+        <>
+          <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
+          Analyzing…
+        </>
+      ) : (
+        <>
+          Find Places
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </>
+      )}
+    </button>
   );
 }
 
@@ -2012,67 +2100,145 @@ function ImportInspirationView({
 }) {
   const { items, hydrated, addItems, removeItem } = useInspirationStore();
 
-  const [url, setUrl]               = useState("");
+  const [method, setMethod]         = useState<ImportMethod>("screenshot");
   const [stage, setStage]           = useState<ImportStage>("idle");
   const [candidates, setCandidates] = useState<ExtractedLocation[]>([]);
   const [selected, setSelected]     = useState<Set<number>>(new Set());
-  const [manualIndices, setManualIndices] = useState<Set<number>>(new Set());
-  const [sourceUrl, setSourceUrl]   = useState("");
   const [notice, setNotice]         = useState<ImportNotice | null>(null);
   const [showMap, setShowMap]       = useState(false);
   const [lastAdded, setLastAdded]   = useState<InspirationItem[]>([]);
 
-  const [manualOpen, setManualOpen]   = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editValue, setEditValue]       = useState("");
+
+  // Option 1 — screenshot
+  const [file, setFile]             = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Option 2 — caption / notes
+  const [notesText, setNotesText] = useState("");
+
+  // Option 3 — Instagram link (source reference only — never fetched server-side)
+  const [instagramUrl, setInstagramUrl]             = useState("");
+  const [instagramSourceUrl, setInstagramSourceUrl] = useState("");
+  const [instagramError, setInstagramError]         = useState("");
+
+  // Option 4 — manual place
   const [manualName, setManualName]   = useState("");
   const [manualBusy, setManualBusy]   = useState(false);
   const [manualError, setManualError] = useState("");
 
-  async function handleImport(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = url.trim();
-    if (!trimmed || stage === "loading") return;
+  const topRef = useRef<HTMLDivElement | null>(null);
 
-    // Client-side validation first — never call the AI API for an obviously
-    // invalid URL.
-    if (!parseInstagramUrl(trimmed)) {
-      setNotice({ kind: "invalid", message: "Please enter a valid Instagram link." });
+  useEffect(() => {
+    // Revoke the object URL on unmount so a long session doesn't leak memory.
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
+  }, [previewUrl]);
+
+  function applyExtractionResult(data: {
+    status: string;
+    message: string;
+    nextStep?: string;
+    locations?: ExtractedLocation[];
+  }) {
+    if (data.status === "success" && Array.isArray(data.locations) && data.locations.length) {
+      const locs = data.locations;
+      setCandidates((prev) => [...prev, ...locs]);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        locs.forEach((l, i) => { if (l.inCoverage) next.add(candidates.length + i); });
+        return next;
+      });
+      setNotice(null);
+      setStage("review");
       return;
     }
+    if (data.status === "no_locations") {
+      setNotice({ kind: "empty", message: data.message, nextStep: data.nextStep, offerFallback: true });
+    } else if (data.status === "unsupported_file") {
+      setNotice({ kind: "unsupported", message: data.message, nextStep: data.nextStep });
+    } else if (data.status === "file_too_large") {
+      setNotice({ kind: "too_large", message: data.message, nextStep: data.nextStep });
+    } else if (data.status === "invalid_input") {
+      setNotice({ kind: "invalid", message: data.message, nextStep: data.nextStep });
+    } else {
+      setNotice({ kind: "error", message: data.message || "Something went wrong.", nextStep: data.nextStep, offerFallback: true });
+    }
+    setStage(candidates.length > 0 ? "review" : "idle");
+  }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file after removing it
+    if (!f) return;
+    if (!ACCEPTED_IMAGE_TYPES.includes(f.type)) {
+      setNotice({ kind: "unsupported", message: "That file type isn't supported.", nextStep: "Upload a PNG, JPG or WEBP screenshot." });
+      return;
+    }
+    if (f.size > MAX_IMAGE_BYTES_CLIENT) {
+      setNotice({ kind: "too_large", message: "That image is too large.", nextStep: "Try a screenshot under 6MB." });
+      return;
+    }
+    setNotice(null);
+    setFile(f);
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(f);
+    });
+  }
+
+  function removeFile() {
+    setFile(null);
+    setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+  }
+
+  async function handleScreenshotSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!file || stage === "loading") return;
     setStage("loading");
     setNotice(null);
     try {
-      const res  = await fetch("/api/inspiration/import", {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/inspiration/analyze", { method: "POST", body: formData });
+      const data = await res.json();
+      applyExtractionResult(data);
+    } catch {
+      setNotice({ kind: "error", message: "Network error. Please try again.", offerFallback: true });
+      setStage(candidates.length > 0 ? "review" : "idle");
+    }
+  }
+
+  async function handleNotesSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = notesText.trim();
+    if (!trimmed || stage === "loading") return;
+    setStage("loading");
+    setNotice(null);
+    try {
+      const res = await fetch("/api/inspiration/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
+        body: JSON.stringify({ notes: trimmed }),
       });
       const data = await res.json();
-
-      if (data.status === "success" && Array.isArray(data.locations) && data.locations.length) {
-        const locs: ExtractedLocation[] = data.locations;
-        setCandidates(locs);
-        setSelected(new Set(locs.map((l, i) => (l.inCoverage ? i : -1)).filter((i) => i >= 0)));
-        setManualIndices(new Set());
-        setSourceUrl(data.sourceUrl || trimmed);
-        setStage("review");
-      } else if (data.status === "not_connected") {
-        setNotice({ kind: "not_connected", message: data.message, nextStep: data.nextStep });
-        setStage("idle");
-      } else if (data.status === "no_locations") {
-        setNotice({ kind: "empty", message: data.message, nextStep: data.nextStep });
-        setStage("idle");
-      } else if (data.status === "invalid_url") {
-        setNotice({ kind: "invalid", message: data.message });
-        setStage("idle");
-      } else {
-        setNotice({ kind: "error", message: data.message || "Something went wrong.", nextStep: data.nextStep });
-        setStage("idle");
-      }
+      applyExtractionResult(data);
     } catch {
-      setNotice({ kind: "error", message: "Network error. Please try again." });
-      setStage("idle");
+      setNotice({ kind: "error", message: "Network error. Please try again.", offerFallback: true });
+      setStage(candidates.length > 0 ? "review" : "idle");
     }
+  }
+
+  function handleInstagramSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = instagramUrl.trim();
+    const parsed = parseInstagramUrl(trimmed);
+    if (!parsed) {
+      setInstagramError("Please enter a valid Instagram link (instagram.com/p/… or /reel/…).");
+      return;
+    }
+    setInstagramError("");
+    setInstagramSourceUrl(parsed.canonicalUrl);
   }
 
   function toggle(i: number) {
@@ -2089,6 +2255,34 @@ function ImportInspirationView({
 
   function deselectAll() {
     setSelected(new Set());
+  }
+
+  function startEdit(i: number, currentName: string) {
+    setEditingIndex(i);
+    setEditValue(currentName);
+  }
+
+  function commitEdit() {
+    if (editingIndex === null) return;
+    const trimmed = editValue.trim();
+    const idx = editingIndex;
+    if (trimmed) {
+      setCandidates((prev) => prev.map((c, i) => (i === idx ? { ...c, locationName: trimmed } : c)));
+    }
+    setEditingIndex(null);
+  }
+
+  function removeCandidate(i: number) {
+    setCandidates((prev) => prev.filter((_, idx) => idx !== i));
+    setSelected((prev) => {
+      const next = new Set<number>();
+      prev.forEach((idx) => {
+        if (idx === i) return;
+        next.add(idx > i ? idx - 1 : idx);
+      });
+      return next;
+    });
+    if (editingIndex === i) setEditingIndex(null);
   }
 
   async function handleManualAdd(e: React.FormEvent) {
@@ -2108,10 +2302,8 @@ function ImportInspirationView({
         const idx = candidates.length;
         setCandidates((prev) => [...prev, data.location]);
         setSelected((prev) => new Set(prev).add(idx));
-        setManualIndices((prev) => new Set(prev).add(idx));
         if (stage !== "review") setStage("review");
         setManualName("");
-        setManualOpen(false);
       } else {
         setManualError(data.message || "Could not add this place.");
       }
@@ -2127,14 +2319,17 @@ function ImportInspirationView({
     const toAdd: InspirationItem[] = candidates
       .map((c, i) => ({ c, i }))
       .filter(({ i }) => selected.has(i))
-      .map(({ c, i }) => {
+      .map(({ c }) => {
         const coords = resolveCoords(c.locationName) ?? resolveCoords(c.city);
-        const isManual = manualIndices.has(i);
+        // An Instagram link is a source reference, not an extraction method —
+        // when one is saved, it takes attribution for anything that wasn't
+        // typed in directly through "Add Place Manually".
+        const attachInstagram = Boolean(instagramSourceUrl) && c.sourceType !== "manual";
         return {
           id: `insp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
           userId: null,
-          sourceType: isManual ? ("manual" as const) : ("instagram" as const),
-          sourceUrl: isManual ? "" : sourceUrl,
+          sourceType: attachInstagram ? ("instagram" as const) : c.sourceType,
+          sourceUrl: attachInstagram ? instagramSourceUrl : "",
           title: c.locationName,
           locationName: c.locationName,
           city: c.city,
@@ -2152,15 +2347,15 @@ function ImportInspirationView({
     setLastAdded(toAdd);
     setCandidates([]);
     setSelected(new Set());
-    setManualIndices(new Set());
-    setUrl("");
+    setFile(null);
+    setPreviewUrl(null);
+    setNotesText("");
     setStage(toAdd.length > 0 ? "added" : "idle");
   }
 
   function handleCancelReview() {
     setCandidates([]);
     setSelected(new Set());
-    setManualIndices(new Set());
     setStage("idle");
   }
 
@@ -2169,129 +2364,213 @@ function ImportInspirationView({
     setStage("idle");
   }
 
-  return (
-    <div className="max-w-5xl mx-auto flex flex-col gap-6">
+  function scrollToTop() {
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
-      {/* ── Import from Instagram ── */}
+  return (
+    <div ref={topRef} className="max-w-5xl mx-auto flex flex-col gap-6">
+
+      {/* ── Input methods ── */}
       <div
-        className="rounded-[28px] border p-7 md:p-10 relative overflow-hidden"
+        className="rounded-[28px] border p-6 md:p-9 relative overflow-hidden"
         style={{ background: "#112723", borderColor: "rgba(88,199,178,0.25)" }}
       >
         <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(88,199,178,0.10) 0%, transparent 70%)", filter: "blur(52px)" }} />
 
-        <div className="flex items-center gap-2.5 mb-4 relative">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#58C7B2" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4.5"/><circle cx="17.5" cy="6.5" r="1" fill="#58C7B2" stroke="none"/></svg>
-          <p className="text-[9.5px] font-bold uppercase tracking-[0.20em]" style={{ color: "rgba(88,199,178,0.75)" }}>Import from Instagram</p>
-        </div>
+        <div className="relative">
+          <MethodTabs active={method} onChange={(m) => { setMethod(m); setNotice(null); }} disabled={stage === "loading"} />
 
-        <p className="text-[13px] text-white/48 font-light leading-relaxed max-w-lg mb-7 relative">
-          Paste an Instagram Reel link and Rhinotrek will identify the places worth adding to your journey.
-        </p>
+          <div className="mt-7">
 
-        <form onSubmit={handleImport} className="flex flex-col gap-3 relative">
-          <label htmlFor="insp-url" className="text-[12px] font-semibold text-white/55">
-            Paste Instagram Reel URL
-          </label>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <input
-              id="insp-url"
-              type="url"
-              required
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.instagram.com/reel/..."
-              disabled={stage === "loading"}
-              className="flex-1 rounded-2xl border px-5 py-4 text-sm text-white placeholder-white/25 outline-none transition disabled:opacity-60"
-              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(88,199,178,0.22)" }}
-            />
-            <button
-              type="submit"
-              disabled={stage === "loading" || !url.trim()}
-              className="inline-flex items-center justify-center gap-2.5 rounded-2xl py-4 px-7 text-[14.5px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed"
+            {/* Option 1 — Upload Screenshot */}
+            {method === "screenshot" && (
+              <div>
+                <p className="text-[13px] text-white/48 font-light leading-relaxed max-w-lg mb-6">
+                  Screenshots from Instagram, blogs, travel sites, Maps or WhatsApp all work — Rhinotrek reads what&apos;s in the image.
+                </p>
+                <form onSubmit={handleScreenshotSubmit} className="flex flex-col gap-4">
+                  <label
+                    htmlFor="insp-screenshot"
+                    className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-9 text-center cursor-pointer transition-colors hover:bg-white/[0.03]"
+                    style={{ borderColor: "rgba(88,199,178,0.28)", background: "rgba(255,255,255,0.02)" }}
+                  >
+                    {previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={previewUrl} alt="Screenshot preview" className="max-h-60 rounded-xl object-contain" />
+                    ) : (
+                      <>
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#58C7B2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                        <div>
+                          <p className="text-[13.5px] font-semibold text-white/80">Click to upload a screenshot</p>
+                          <p className="text-[11.5px] text-white/35 mt-1">PNG, JPG or WEBP · up to 6MB</p>
+                        </div>
+                      </>
+                    )}
+                    <input
+                      id="insp-screenshot"
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={handleFileChange}
+                      disabled={stage === "loading"}
+                    />
+                  </label>
+                  {file && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[12px] text-white/45 truncate">{file.name}</span>
+                      <button type="button" onClick={removeFile} className="text-[12px] font-semibold text-white/40 hover:text-white/70 transition-colors shrink-0">
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                  <FindPlacesButton disabled={!file || stage === "loading"} loading={stage === "loading"} className="self-start" />
+                </form>
+              </div>
+            )}
+
+            {/* Option 2 — Paste Caption / Notes */}
+            {method === "notes" && (
+              <div>
+                <p className="text-[13px] text-white/48 font-light leading-relaxed max-w-lg mb-6">
+                  Paste an Instagram caption, a blog excerpt, or your own notes — Rhinotrek will pull out the real places.
+                </p>
+                <form onSubmit={handleNotesSubmit} className="flex flex-col gap-3">
+                  <textarea
+                    value={notesText}
+                    onChange={(e) => setNotesText(e.target.value)}
+                    placeholder="5 places to visit in Meghalaya — Laitlum Canyon, Wei Sawdong Falls, Dawki, Nongjrong and Phe Phe Falls…"
+                    disabled={stage === "loading"}
+                    rows={5}
+                    className="rounded-2xl border px-5 py-4 text-sm text-white placeholder-white/25 outline-none resize-none disabled:opacity-60"
+                    style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(88,199,178,0.22)" }}
+                  />
+                  <FindPlacesButton disabled={!notesText.trim() || stage === "loading"} loading={stage === "loading"} className="self-start" />
+                </form>
+              </div>
+            )}
+
+            {/* Option 3 — Add Instagram Link (source reference only — never fetched) */}
+            {method === "instagram" && (
+              <div>
+                <p className="text-[13px] text-white/48 font-light leading-relaxed max-w-lg mb-6">
+                  Rhinotrek doesn&apos;t read Instagram directly. Save the link as your source, then upload a screenshot or paste the caption so it can identify the places.
+                </p>
+                {!instagramSourceUrl ? (
+                  <form onSubmit={handleInstagramSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <input
+                      type="url"
+                      required
+                      value={instagramUrl}
+                      onChange={(e) => setInstagramUrl(e.target.value)}
+                      placeholder="https://www.instagram.com/reel/..."
+                      className="flex-1 rounded-2xl border px-5 py-4 text-sm text-white placeholder-white/25 outline-none transition"
+                      style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(88,199,178,0.22)" }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!instagramUrl.trim()}
+                      className="inline-flex items-center justify-center rounded-2xl py-4 px-7 text-[14px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed"
+                      style={{
+                        background: !instagramUrl.trim() ? "rgba(88,199,178,0.14)" : "#58C7B2",
+                        color: !instagramUrl.trim() ? "rgba(88,199,178,0.55)" : "#0B1C1A",
+                      }}
+                    >
+                      Save Link
+                    </button>
+                  </form>
+                ) : (
+                  <div className="rounded-2xl border px-5 py-4 flex flex-col gap-3" style={{ background: "rgba(88,199,178,0.06)", borderColor: "rgba(88,199,178,0.22)" }}>
+                    <div className="flex items-center justify-between gap-3">
+                      <a href={instagramSourceUrl} target="_blank" rel="noopener noreferrer" className="text-[12.5px] font-medium truncate" style={{ color: "#58C7B2" }}>
+                        {instagramSourceUrl}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => { setInstagramSourceUrl(""); setInstagramUrl(""); }}
+                        className="text-[12px] font-semibold text-white/40 hover:text-white/70 transition-colors shrink-0"
+                      >
+                        Change
+                      </button>
+                    </div>
+                    <p className="text-[12.5px] text-white/55 font-light leading-relaxed">
+                      Keep this link as your source, then upload a screenshot or paste the caption so Rhinotrek can identify the places.
+                    </p>
+                    <div className="flex items-center gap-5">
+                      <button type="button" onClick={() => setMethod("screenshot")} className="text-[12.5px] font-bold" style={{ color: "#58C7B2" }}>
+                        Upload Screenshot →
+                      </button>
+                      <button type="button" onClick={() => setMethod("notes")} className="text-[12.5px] font-bold" style={{ color: "#58C7B2" }}>
+                        Paste Caption →
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {instagramError && <p className="text-[11.5px] mt-2" style={{ color: "#F87171" }}>{instagramError}</p>}
+              </div>
+            )}
+
+            {/* Option 4 — Add Place Manually */}
+            {method === "manual" && (
+              <div>
+                <p className="text-[13px] text-white/48 font-light leading-relaxed max-w-lg mb-6">
+                  Already know a place you want to include? Add it directly — it goes through the same review as AI-detected places.
+                </p>
+                <form onSubmit={handleManualAdd} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <input
+                    type="text"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="e.g. Ziro Valley"
+                    disabled={manualBusy}
+                    className="flex-1 rounded-2xl border px-5 py-4 text-sm text-white placeholder-white/25 outline-none disabled:opacity-60"
+                    style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(88,199,178,0.22)" }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={manualBusy || !manualName.trim()}
+                    className="rounded-2xl px-7 py-4 text-[14px] font-semibold whitespace-nowrap disabled:cursor-not-allowed"
+                    style={{
+                      background: manualBusy || !manualName.trim() ? "rgba(88,199,178,0.14)" : "#58C7B2",
+                      color: manualBusy || !manualName.trim() ? "rgba(88,199,178,0.5)" : "#0B1C1A",
+                    }}
+                  >
+                    {manualBusy ? "Adding…" : "Add Place"}
+                  </button>
+                </form>
+                {manualError && <p className="text-[11.5px] mt-2" style={{ color: "#F87171" }}>{manualError}</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Notices — always honest: never a fake success state */}
+          {notice && (
+            <div
+              className="mt-5 rounded-2xl px-5 py-4"
               style={{
-                background: stage === "loading" || !url.trim() ? "rgba(88,199,178,0.14)" : "#58C7B2",
-                color: stage === "loading" || !url.trim() ? "rgba(88,199,178,0.55)" : "#0B1C1A",
+                background: notice.kind === "empty" ? "rgba(88,199,178,0.08)" : "rgba(239,68,68,0.06)",
+                border: `1px solid ${notice.kind === "empty" ? "rgba(88,199,178,0.24)" : "rgba(239,68,68,0.20)"}`,
               }}
             >
-              {stage === "loading" ? (
-                <>
-                  <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>
-                  Analyzing…
-                </>
-              ) : (
-                <>
-                  Analyze Inspiration
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </>
+              <p className="text-[13px] font-semibold" style={{ color: notice.kind === "empty" ? "#58C7B2" : "#F87171" }}>
+                {notice.message}
+              </p>
+              {notice.nextStep && (
+                <p className="text-[12px] text-white/40 font-light leading-relaxed mt-1.5">{notice.nextStep}</p>
               )}
-            </button>
-          </div>
-        </form>
-
-        {/* Manual fallback — always available, not just after a failed import */}
-        {stage !== "loading" && (
-          <div className="mt-5 relative">
-            {!manualOpen ? (
-              <button
-                type="button"
-                onClick={() => setManualOpen(true)}
-                className="text-[12.5px] font-semibold text-white/40 hover:text-white/70 transition-colors underline underline-offset-2 decoration-white/20"
-              >
-                Can&apos;t find your place? Add it manually
-              </button>
-            ) : (
-              <form onSubmit={handleManualAdd} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                <input
-                  type="text"
-                  autoFocus
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  placeholder="e.g. Ziro Valley"
-                  disabled={manualBusy}
-                  className="flex-1 rounded-xl border px-4 py-2.5 text-[13px] text-white placeholder-white/25 outline-none disabled:opacity-60"
-                  style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(88,199,178,0.18)" }}
-                />
-                <button
-                  type="submit"
-                  disabled={manualBusy || !manualName.trim()}
-                  className="rounded-xl px-4 py-2.5 text-[12.5px] font-semibold whitespace-nowrap disabled:cursor-not-allowed"
-                  style={{
-                    background: manualBusy || !manualName.trim() ? "rgba(88,199,178,0.14)" : "#58C7B2",
-                    color: manualBusy || !manualName.trim() ? "rgba(88,199,178,0.5)" : "#0B1C1A",
-                  }}
-                >
-                  {manualBusy ? "Adding…" : "Add"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setManualOpen(false); setManualName(""); setManualError(""); }}
-                  className="text-[12px] font-medium text-white/35 hover:text-white/60 transition-colors"
-                >
-                  Cancel
-                </button>
-              </form>
-            )}
-            {manualError && <p className="text-[11.5px] mt-2" style={{ color: "#F87171" }}>{manualError}</p>}
-          </div>
-        )}
-
-        {/* Notices — always honest: never a fake success state */}
-        {notice && (
-          <div
-            className="mt-5 rounded-2xl px-5 py-4 relative"
-            style={{
-              background: notice.kind === "not_connected" ? "rgba(88,199,178,0.08)" : "rgba(239,68,68,0.06)",
-              border: `1px solid ${notice.kind === "not_connected" ? "rgba(88,199,178,0.24)" : "rgba(239,68,68,0.20)"}`,
-            }}
-          >
-            <p className="text-[13px] font-semibold" style={{ color: notice.kind === "not_connected" ? "#58C7B2" : "#F87171" }}>
-              {notice.kind === "not_connected" ? "Instagram connection required" : notice.message}
-            </p>
-            {notice.nextStep && (
-              <p className="text-[12px] text-white/40 font-light leading-relaxed mt-1.5">{notice.nextStep}</p>
-            )}
-          </div>
-        )}
+              {notice.offerFallback && (
+                <div className="flex items-center gap-5 mt-3">
+                  <button type="button" onClick={() => { setMethod("notes"); setNotice(null); }} className="text-[12px] font-semibold" style={{ color: "#58C7B2" }}>
+                    Paste the caption
+                  </button>
+                  <button type="button" onClick={() => { setMethod("manual"); setNotice(null); }} className="text-[12px] font-semibold" style={{ color: "#58C7B2" }}>
+                    Add a place manually
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Analyzing — polished loading state ── */}
@@ -2315,23 +2594,26 @@ function ImportInspirationView({
           </div>
           <p className="text-[12.5px] text-white/40 font-light mb-6">Review and select which ones to save — AI extraction can make mistakes.</p>
 
-          <div className="flex flex-col gap-2.5 mb-7">
+          <div className="flex flex-col gap-2.5 mb-5">
             {candidates.map((c, i) => {
               const isSelected = selected.has(i);
-              const isManual = manualIndices.has(i);
               const confidencePct = Math.round(c.confidence * 100);
+              const needsConfirmation = !c.state;
+              const outsideCoverage = Boolean(c.state) && !c.inCoverage;
+              const isEditing = editingIndex === i;
               return (
-                <button
+                <div
                   key={`${c.locationName}-${i}`}
-                  type="button"
-                  onClick={() => toggle(i)}
-                  className="flex items-start gap-3.5 text-left rounded-2xl border px-4 py-3.5 transition-colors"
+                  className="flex items-start gap-3.5 rounded-2xl border px-4 py-3.5 transition-colors"
                   style={{
                     background: isSelected ? "rgba(88,199,178,0.08)" : "rgba(255,255,255,0.02)",
                     borderColor: isSelected ? "rgba(88,199,178,0.30)" : "rgba(255,255,255,0.08)",
                   }}
                 >
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => toggle(i)}
+                    aria-label={isSelected ? `Deselect ${c.locationName}` : `Select ${c.locationName}`}
                     className="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5"
                     style={{
                       background: isSelected ? "#58C7B2" : "transparent",
@@ -2339,20 +2621,44 @@ function ImportInspirationView({
                     }}
                   >
                     {isSelected && <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l2.5 2.5 4.5-5" stroke="#0B1C1A" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </div>
+                  </button>
                   <div className="flex flex-col gap-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[14px] font-bold text-white">{c.locationName}</span>
+                      {isEditing ? (
+                        <input
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={commitEdit}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit(); } if (e.key === "Escape") setEditingIndex(null); }}
+                          className="text-[14px] font-bold text-white bg-transparent border-b outline-none"
+                          style={{ borderColor: "rgba(88,199,178,0.45)" }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(i, c.locationName)}
+                          className="text-[14px] font-bold text-white hover:underline decoration-white/30 underline-offset-2 text-left"
+                          title="Edit name"
+                        >
+                          {c.locationName}
+                        </button>
+                      )}
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}>
                         {c.category}
                       </span>
-                      {!c.inCoverage && (
+                      {needsConfirmation && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(148,163,184,0.16)", color: "#CBD5E1" }}>
+                          Needs confirmation
+                        </span>
+                      )}
+                      {outsideCoverage && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(245,158,11,0.14)", color: "#F5B843" }}>
-                          Outside Rhinotrek&apos;s Northeast India scope
+                          Outside Rhinotrek coverage
                         </span>
                       )}
                       <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.28)" }}>
-                        {isManual ? "added manually" : "via Instagram"} · {confidencePct}% confidence
+                        {SOURCE_TYPE_LABELS[c.sourceType]} · {confidencePct}% confidence
                       </span>
                     </div>
                     <p className="text-[12px] text-white/40 font-light">
@@ -2360,10 +2666,26 @@ function ImportInspirationView({
                       {c.description ? ` — ${c.description}` : ""}
                     </p>
                   </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => removeCandidate(i)}
+                    aria-label={`Remove ${c.locationName}`}
+                    className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-white/6 transition-colors mt-0.5"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                  </button>
+                </div>
               );
             })}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setMethod("manual")}
+            className="text-[12.5px] font-semibold text-white/40 hover:text-white/70 transition-colors mb-6 inline-block"
+          >
+            + Add another place manually
+          </button>
 
           <div className="flex items-center gap-3">
             <button
@@ -2407,7 +2729,7 @@ function ImportInspirationView({
               className="rounded-2xl px-6 py-3 text-[13.5px] font-bold"
               style={{ background: "#58C7B2", color: "#0B1C1A" }}
             >
-              Build My Itinerary →
+              Build My Trip →
             </button>
             <button
               type="button"
@@ -2428,7 +2750,14 @@ function ImportInspirationView({
               <h3 className="text-[1.15rem] font-bold text-white">My Inspiration</h3>
               <p className="text-[12.5px] text-white/40 font-light mt-1">{items.length} place{items.length === 1 ? "" : "s"} saved</p>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={scrollToTop}
+                className="rounded-full px-4 py-2 text-[12.5px] font-semibold border transition-colors text-white/55 hover:text-white/85 border-white/12 hover:border-white/20"
+              >
+                Add More Inspiration
+              </button>
               <button
                 type="button"
                 onClick={() => setShowMap((v) => !v)}
@@ -2443,7 +2772,7 @@ function ImportInspirationView({
                 className="rounded-full px-5 py-2 text-[12.5px] font-bold text-[#0B1C1A]"
                 style={{ background: "#58C7B2" }}
               >
-                Plan this trip →
+                Build My Trip →
               </button>
             </div>
           </div>
@@ -2463,11 +2792,14 @@ function ImportInspirationView({
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}>
                       {item.category}
                     </span>
+                    <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.28)" }}>
+                      {SOURCE_TYPE_LABELS[item.sourceType]}
+                    </span>
                   </div>
                   <p className="text-[12px] text-white/40 font-light">
                     {item.state || "Unknown state"}{item.city && item.city !== item.locationName ? ` · ${item.city}` : ""}
                   </p>
-                  {item.sourceUrl && (
+                  {item.sourceType === "instagram" && item.sourceUrl && (
                     <a
                       href={item.sourceUrl}
                       target="_blank"
@@ -2475,8 +2807,7 @@ function ImportInspirationView({
                       className="text-[11.5px] font-medium inline-flex items-center gap-1 mt-0.5"
                       style={{ color: "rgba(88,199,178,0.70)" }}
                     >
-                      View original on Instagram
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 17L17 7M7 7h10v10"/></svg>
+                      View original inspiration ↗
                     </a>
                   )}
                 </div>
@@ -3200,12 +3531,10 @@ function HomePage({
                 </button>
                 <div className="max-w-5xl mx-auto mb-10">
                   <h2 className="text-[1.7rem] sm:text-[2.6rem] font-bold text-white tracking-[-0.025em] mb-3">
-                    Import Inspiration
+                    Turn inspiration into a trip
                   </h2>
                   <p className="text-[0.95rem] text-white/40 font-light max-w-lg leading-relaxed">
-                    Turn your travel inspiration into a real Northeast trip.
-                    <br className="hidden sm:block" />
-                    Paste an Instagram Reel link and Rhinotrek will identify the places worth adding to your journey.
+                    Upload a screenshot, paste travel notes or add places you&apos;ve saved. Rhinotrek will identify the locations and help turn them into a realistic Northeast journey.
                   </p>
                 </div>
                 <ImportInspirationView onPlanFromInspiration={handlePlanFromInspiration} />

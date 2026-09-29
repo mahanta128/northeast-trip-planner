@@ -58,7 +58,15 @@ export type InspirationCategory = (typeof INSPIRATION_CATEGORIES)[number];
 
 /* ─── Core entities ───────────────────────────────────────────── */
 
-export type InspirationSourceType = "instagram" | "manual";
+export type InspirationSourceType = "screenshot" | "notes" | "instagram" | "manual";
+
+/** Human-readable label for how a location was surfaced — shown on review/collection cards. */
+export const SOURCE_TYPE_LABELS: Record<InspirationSourceType, string> = {
+  screenshot: "from your screenshot",
+  notes: "from your notes",
+  instagram: "via Instagram",
+  manual: "added manually",
+};
 
 /** A location the user has reviewed and saved to their collection. */
 export interface InspirationItem {
@@ -87,6 +95,8 @@ export interface ExtractedLocation {
   category: InspirationCategory | string;
   description: string;
   confidence: number; // 0–1
-  /** false when `state` falls outside the 8 supported Northeast states. */
+  /** false when `state` is a real, recognised state outside the 8 supported Northeast ones. */
   inCoverage: boolean;
+  /** How this candidate was surfaced — carried through to the saved InspirationItem. */
+  sourceType: InspirationSourceType;
 }
