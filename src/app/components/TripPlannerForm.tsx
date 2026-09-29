@@ -18,7 +18,8 @@ import {
 import { meghalayaKnowledge } from "../lib/meghalaya";
 import { resolveCoords } from "../lib/geo";
 import { useInspirationStore } from "../lib/inspirationStore";
-import { SOURCE_TYPE_LABELS, type InspirationItem, type ExtractedLocation } from "@/lib/inspiration/types";
+import { SOURCE_TYPE_LABELS, type InspirationLocation } from "@/lib/inspiration/types";
+import { dedupeLocations } from "@/lib/inspiration/normalize";
 import { parseInstagramUrl } from "@/lib/integrations/instagram/parseUrl";
 
 const JourneyMap = dynamic(() => import("./JourneyMap"), {
@@ -168,7 +169,7 @@ interface TripContext {
   permit: PermitData;
   festivals: FestivalData[];
   travelStyle: string;
-  inspirationLocations?: InspirationItem[];
+  inspirationLocations?: InspirationLocation[];
 }
 
 /* ─── Divider ─────────────────────────────────────────────── */
@@ -523,9 +524,9 @@ function getDayNote(location: string, highlights: string[], realityCheck: string
   return null;
 }
 
-function matchesInspiration(dayLocation: string, item: InspirationItem): boolean {
+function matchesInspiration(dayLocation: string, item: InspirationLocation): boolean {
   const a = dayLocation.toLowerCase();
-  const b = item.locationName.toLowerCase();
+  const b = item.name.toLowerCase();
   return a.includes(b) || b.includes(a);
 }
 
@@ -1214,12 +1215,12 @@ function TripResults({ plan, context, onReset, onAskRhye }: { plan: TripPlan; co
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {included.map((l) => (
                   <span key={l.id} className="text-[11.5px] font-medium text-[#0B1C1A] bg-white rounded-full px-2.5 py-1 border" style={{ borderColor: "rgba(88,199,178,0.30)" }}>
-                    ✓ {l.locationName}
+                    ✓ {l.name}
                   </span>
                 ))}
                 {dropped.map((l) => (
                   <span key={l.id} className="text-[11.5px] font-medium text-[#6B7280] bg-white/70 border border-[#DDE8F7] rounded-full px-2.5 py-1 line-through decoration-[#C8D9F5]">
-                    {l.locationName}
+                    {l.name}
                   </span>
                 ))}
               </div>
@@ -2096,20 +2097,20 @@ function FindPlacesButton({ disabled, loading, className = "" }: { disabled: boo
 function ImportInspirationView({
   onPlanFromInspiration,
 }: {
-  onPlanFromInspiration: (items: InspirationItem[]) => void;
+  onPlanFromInspiration: (items: InspirationLocation[]) => void;
 }) {
   const { items, hydrated, addItems, removeItem } = useInspirationStore();
 
   const [method, setMethod]         = useState<ImportMethod>("screenshot");
   const [stage, setStage]           = useState<ImportStage>("idle");
-  const [candidates, setCandidates] = useState<ExtractedLocation[]>([]);
-  const [selected, setSelected]     = useState<Set<number>>(new Set());
+  const [candidates, setCandidates] = useState<InspirationLocation[]>([]);
+  const [selected, setSelected]     = useState<Set<string>>(new Set());
   const [notice, setNotice]         = useState<ImportNotice | null>(null);
   const [showMap, setShowMap]       = useState(false);
-  const [lastAdded, setLastAdded]   = useState<InspirationItem[]>([]);
+  const [lastAdded, setLastAdded]   = useState<InspirationLocation[]>([]);
 
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editValue, setEditValue]       = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   // Option 1 — screenshot
   const [file, setFile]             = useState<File | null>(null);
@@ -2135,18 +2136,27 @@ function ImportInspirationView({
     return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
   }, [previewUrl]);
 
+  /**
+   * Every extraction call (screenshot, notes) already returns fully
+   * normalized+validated InspirationLocation objects — the server-side
+   * pipeline in lib/extraction/locations.ts + lib/inspiration/normalize.ts
+   * handles that. This just merges a new batch into the review list,
+   * deduping conservatively against both what's already queued and what's
+   * already saved, so e.g. a screenshot mentioning "Cherrapunji" and notes
+   * mentioning "Sohra" in the same session don't produce two cards.
+   */
   function applyExtractionResult(data: {
     status: string;
     message: string;
     nextStep?: string;
-    locations?: ExtractedLocation[];
+    locations?: InspirationLocation[];
   }) {
     if (data.status === "success" && Array.isArray(data.locations) && data.locations.length) {
-      const locs = data.locations;
-      setCandidates((prev) => [...prev, ...locs]);
+      const deduped = dedupeLocations(data.locations, [...candidates, ...items]);
+      setCandidates((prev) => [...prev, ...deduped]);
       setSelected((prev) => {
         const next = new Set(prev);
-        locs.forEach((l, i) => { if (l.inCoverage) next.add(candidates.length + i); });
+        deduped.forEach((l) => { if (l.status === "confirmed") next.add(l.id); });
         return next;
       });
       setNotice(null);
@@ -2241,48 +2251,45 @@ function ImportInspirationView({
     setInstagramSourceUrl(parsed.canonicalUrl);
   }
 
-  function toggle(i: number) {
+  function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(i)) next.delete(i); else next.add(i);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
 
   function selectAll() {
-    setSelected(new Set(candidates.map((_, i) => i)));
+    setSelected(new Set(candidates.map((c) => c.id)));
   }
 
   function deselectAll() {
     setSelected(new Set());
   }
 
-  function startEdit(i: number, currentName: string) {
-    setEditingIndex(i);
+  function startEdit(id: string, currentName: string) {
+    setEditingId(id);
     setEditValue(currentName);
   }
 
   function commitEdit() {
-    if (editingIndex === null) return;
+    if (editingId === null) return;
     const trimmed = editValue.trim();
-    const idx = editingIndex;
+    const id = editingId;
     if (trimmed) {
-      setCandidates((prev) => prev.map((c, i) => (i === idx ? { ...c, locationName: trimmed } : c)));
+      setCandidates((prev) => prev.map((c) => (c.id === id ? { ...c, name: trimmed } : c)));
     }
-    setEditingIndex(null);
+    setEditingId(null);
   }
 
-  function removeCandidate(i: number) {
-    setCandidates((prev) => prev.filter((_, idx) => idx !== i));
+  function removeCandidate(id: string) {
+    setCandidates((prev) => prev.filter((c) => c.id !== id));
     setSelected((prev) => {
-      const next = new Set<number>();
-      prev.forEach((idx) => {
-        if (idx === i) return;
-        next.add(idx > i ? idx - 1 : idx);
-      });
+      const next = new Set(prev);
+      next.delete(id);
       return next;
     });
-    if (editingIndex === i) setEditingIndex(null);
+    if (editingId === id) setEditingId(null);
   }
 
   async function handleManualAdd(e: React.FormEvent) {
@@ -2299,11 +2306,16 @@ function ImportInspirationView({
       });
       const data = await res.json();
       if (data.status === "success" && data.location) {
-        const idx = candidates.length;
-        setCandidates((prev) => [...prev, data.location]);
-        setSelected((prev) => new Set(prev).add(idx));
-        if (stage !== "review") setStage("review");
-        setManualName("");
+        const deduped = dedupeLocations([data.location], [...candidates, ...items]);
+        if (deduped.length === 0) {
+          setManualError(`${data.location.name} is already in your list.`);
+        } else {
+          const loc = deduped[0]!;
+          setCandidates((prev) => [...prev, loc]);
+          setSelected((prev) => new Set(prev).add(loc.id));
+          if (stage !== "review") setStage("review");
+          setManualName("");
+        }
       } else {
         setManualError(data.message || "Could not add this place.");
       }
@@ -2315,35 +2327,27 @@ function ImportInspirationView({
   }
 
   function handleAddSelected() {
-    const createdAt = new Date().toISOString();
-    const toAdd: InspirationItem[] = candidates
-      .map((c, i) => ({ c, i }))
-      .filter(({ i }) => selected.has(i))
-      .map(({ c }) => {
-        const coords = resolveCoords(c.locationName) ?? resolveCoords(c.city);
+    // Candidates already carry the full shared shape (id, status, etc) from
+    // the extraction pipeline — the Planner will receive exactly this, with
+    // no idea whether a given place came from a screenshot, notes, or a
+    // manual entry.
+    const toAdd: InspirationLocation[] = candidates
+      .filter((c) => selected.has(c.id))
+      .map((c) => {
+        const coords = resolveCoords(c.name) ?? resolveCoords(c.city);
         // An Instagram link is a source reference, not an extraction method —
         // when one is saved, it takes attribution for anything that wasn't
         // typed in directly through "Add Place Manually".
         const attachInstagram = Boolean(instagramSourceUrl) && c.sourceType !== "manual";
         return {
-          id: `insp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-          userId: null,
+          ...c,
           sourceType: attachInstagram ? ("instagram" as const) : c.sourceType,
-          sourceUrl: attachInstagram ? instagramSourceUrl : "",
-          title: c.locationName,
-          locationName: c.locationName,
-          city: c.city,
-          state: c.state,
-          category: c.category,
-          description: c.description,
-          latitude: coords ? coords[0] : null,
-          longitude: coords ? coords[1] : null,
-          confidence: c.confidence,
-          selected: true,
-          createdAt,
+          sourceUrl: attachInstagram ? instagramSourceUrl : c.sourceUrl,
+          latitude: coords ? coords[0] : c.latitude,
+          longitude: coords ? coords[1] : c.longitude,
         };
       });
-    addItems(toAdd);
+    addItems(toAdd); // the store itself dedupes against what's already saved
     setLastAdded(toAdd);
     setCandidates([]);
     setSelected(new Set());
@@ -2595,15 +2599,15 @@ function ImportInspirationView({
           <p className="text-[12.5px] text-white/40 font-light mb-6">Review and select which ones to save — AI extraction can make mistakes.</p>
 
           <div className="flex flex-col gap-2.5 mb-5">
-            {candidates.map((c, i) => {
-              const isSelected = selected.has(i);
+            {candidates.map((c) => {
+              const isSelected = selected.has(c.id);
               const confidencePct = Math.round(c.confidence * 100);
-              const needsConfirmation = !c.state;
-              const outsideCoverage = Boolean(c.state) && !c.inCoverage;
-              const isEditing = editingIndex === i;
+              const needsConfirmation = c.status === "needs_confirmation";
+              const outsideCoverage = c.status === "outside_coverage";
+              const isEditing = editingId === c.id;
               return (
                 <div
-                  key={`${c.locationName}-${i}`}
+                  key={c.id}
                   className="flex items-start gap-3.5 rounded-2xl border px-4 py-3.5 transition-colors"
                   style={{
                     background: isSelected ? "rgba(88,199,178,0.08)" : "rgba(255,255,255,0.02)",
@@ -2612,8 +2616,8 @@ function ImportInspirationView({
                 >
                   <button
                     type="button"
-                    onClick={() => toggle(i)}
-                    aria-label={isSelected ? `Deselect ${c.locationName}` : `Select ${c.locationName}`}
+                    onClick={() => toggle(c.id)}
+                    aria-label={isSelected ? `Deselect ${c.name}` : `Select ${c.name}`}
                     className="w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5"
                     style={{
                       background: isSelected ? "#58C7B2" : "transparent",
@@ -2630,22 +2634,22 @@ function ImportInspirationView({
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={commitEdit}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit(); } if (e.key === "Escape") setEditingIndex(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit(); } if (e.key === "Escape") setEditingId(null); }}
                           className="text-[14px] font-bold text-white bg-transparent border-b outline-none"
                           style={{ borderColor: "rgba(88,199,178,0.45)" }}
                         />
                       ) : (
                         <button
                           type="button"
-                          onClick={() => startEdit(i, c.locationName)}
+                          onClick={() => startEdit(c.id, c.name)}
                           className="text-[14px] font-bold text-white hover:underline decoration-white/30 underline-offset-2 text-left"
                           title="Edit name"
                         >
-                          {c.locationName}
+                          {c.name}
                         </button>
                       )}
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}>
-                        {c.category}
+                        {c.type}
                       </span>
                       {needsConfirmation && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(148,163,184,0.16)", color: "#CBD5E1" }}>
@@ -2668,8 +2672,8 @@ function ImportInspirationView({
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeCandidate(i)}
-                    aria-label={`Remove ${c.locationName}`}
+                    onClick={() => removeCandidate(c.id)}
+                    aria-label={`Remove ${c.name}`}
                     className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-white/25 hover:text-white/60 hover:bg-white/6 transition-colors mt-0.5"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -2788,16 +2792,16 @@ function ImportInspirationView({
               <div key={item.id} className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 px-4 py-3.5" style={{ background: "rgba(255,255,255,0.02)" }}>
                 <div className="flex flex-col gap-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[14px] font-bold text-white">{item.locationName}</span>
+                    <span className="text-[14px] font-bold text-white">{item.name}</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-[0.08em]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.44)" }}>
-                      {item.category}
+                      {item.type}
                     </span>
                     <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.28)" }}>
                       {SOURCE_TYPE_LABELS[item.sourceType]}
                     </span>
                   </div>
                   <p className="text-[12px] text-white/40 font-light">
-                    {item.state || "Unknown state"}{item.city && item.city !== item.locationName ? ` · ${item.city}` : ""}
+                    {item.state || "Unknown state"}{item.city && item.city !== item.name ? ` · ${item.city}` : ""}
                   </p>
                   {item.sourceType === "instagram" && item.sourceUrl && (
                     <a
@@ -2814,7 +2818,7 @@ function ImportInspirationView({
                 <button
                   type="button"
                   onClick={() => removeItem(item.id)}
-                  aria-label={`Remove ${item.locationName}`}
+                  aria-label={`Remove ${item.name}`}
                   className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white/30 hover:text-white/70 hover:bg-white/6 transition-colors"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -2837,14 +2841,14 @@ function HomePage({
   setForm: React.Dispatch<React.SetStateAction<FormState>>;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   error: string;
-  inspirationLocations: InspirationItem[];
-  setInspirationLocations: React.Dispatch<React.SetStateAction<InspirationItem[]>>;
+  inspirationLocations: InspirationLocation[];
+  setInspirationLocations: React.Dispatch<React.SetStateAction<InspirationLocation[]>>;
 }) {
   const mood = MOOD_THEMES[form.destination] ?? MOOD_THEMES["Meghalaya"]!;
   const [destIdx, setDestIdx] = useState(0);
   const [mode, setMode] = useState<null | 'planner' | 'import'>(null);
 
-  function handlePlanFromInspiration(items: InspirationItem[]) {
+  function handlePlanFromInspiration(items: InspirationLocation[]) {
     setInspirationLocations(items);
 
     // Seed the planner's destination from the majority state among saved
@@ -3188,7 +3192,7 @@ function HomePage({
                       <div className="flex flex-wrap gap-1.5">
                         {inspirationLocations.map((l) => (
                           <span key={l.id} className="text-[12px] font-medium text-[#1C2333] bg-white border border-[#DDE8F7] rounded-full px-2.5 py-1">
-                            {l.locationName}
+                            {l.name}
                           </span>
                         ))}
                       </div>
@@ -3784,7 +3788,7 @@ export default function TripPlannerForm() {
   const [tripContext, setTripContext]  = useState<TripContext | null>(null);
   const [error, setError]             = useState("");
   const [rhyeOpen, setRhyeOpen]       = useState(false);
-  const [inspirationLocations, setInspirationLocations] = useState<InspirationItem[]>([]);
+  const [inspirationLocations, setInspirationLocations] = useState<InspirationLocation[]>([]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -3843,8 +3847,12 @@ export default function TripPlannerForm() {
           permitRequired: context.permit.required,
           permitName:     context.permit.name,
           festivals:      context.festivals.map((f) => f.name),
+          // Wire shape kept as {name, state, category} — this is
+          // /api/plan's existing, unchanged contract. The Planner only
+          // ever sees preferred travel locations, never how they were
+          // sourced (screenshot/notes/Instagram/manual).
           inspirationLocations: inspirationLocations.map((l) => ({
-            name: l.locationName, state: l.state, category: l.category,
+            name: l.name, state: l.state, category: l.type,
           })),
         }),
       });
@@ -3883,7 +3891,7 @@ export default function TripPlannerForm() {
     stay:         plan.stay,
     itinerary:    plan.itinerary,
     realityCheck: plan.realityCheck,
-    inspirationLocations: tripContext.inspirationLocations?.map((l) => l.locationName),
+    inspirationLocations: tripContext.inspirationLocations?.map((l) => l.name),
   } : {};
 
   return (

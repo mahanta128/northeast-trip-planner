@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeManualLocation, LocationExtractionError } from "@/lib/extraction/locations";
-import type { ExtractedLocation } from "@/lib/inspiration/types";
+import { extractManualLocation, LocationExtractionError } from "@/lib/extraction/locations";
+import type { InspirationLocation } from "@/lib/inspiration/types";
 
 /**
  * "Can't find your place? Add it manually" — runs a user-typed place name
- * through the same normalization used for AI-detected (Instagram) locations,
- * so both end up in an identical shape before the user reviews/saves them.
+ * through the same extraction + normalization pipeline as every other
+ * inspiration source, so it ends up in an identical shape before the user
+ * reviews/saves it.
  */
 
 export interface NormalizeLocationResponse {
   status: "success" | "invalid_name" | "error";
   message: string;
-  location?: ExtractedLocation;
+  location?: InspirationLocation;
 }
 
 export async function POST(req: NextRequest) {
@@ -32,10 +33,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const location = await normalizeManualLocation(name);
+    const location = await extractManualLocation(name);
     return NextResponse.json<NormalizeLocationResponse>({
       status: "success",
-      message: `Added ${location.locationName}.`,
+      message: `Added ${location.name}.`,
       location,
     });
   } catch (err) {

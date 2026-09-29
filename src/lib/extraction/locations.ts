@@ -1,10 +1,23 @@
 import OpenAI from "openai";
 import {
-  normalizeNortheastState,
   INSPIRATION_CATEGORIES,
-  type ExtractedLocation,
+  type InspirationLocation,
   type InspirationSourceType,
+  type RawExtractedCandidate,
 } from "@/lib/inspiration/types";
+import { normalizeLocations, dedupeLocations, toInspirationLocation } from "@/lib/inspiration/normalize";
+
+/**
+ * The extraction layer of the Import Inspiration pipeline:
+ *
+ *   Screenshot / Notes / Manual  →  [ this file ]  →  Candidate Locations  →  Normalization (lib/inspiration/normalize.ts)
+ *
+ * This file's only job is talking to OpenAI and turning its structured
+ * output into raw candidates. It deliberately knows nothing about Northeast
+ * validation, ids, or dedup — see src/lib/inspiration/normalize.ts for that.
+ * This is extraction, not itinerary generation: the prompts below are
+ * separate from, and never touch, the Rhinotrek itinerary system prompt.
+ */
 
 export class LocationExtractionError extends Error {
   constructor(message = "Could not extract locations from this content.") {
@@ -29,19 +42,6 @@ function getClient(): OpenAI {
   }
   client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   return client;
-}
-
-interface RawLocation {
-  locationName: string;
-  city: string;
-  state: string;
-  category: string;
-  description: string;
-  confidence: number;
-}
-
-interface RawExtraction {
-  locations: RawLocation[];
 }
 
 /**
@@ -75,27 +75,26 @@ const EXTRACTION_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-function normalizeRaw(l: RawLocation, sourceType: InspirationSourceType): ExtractedLocation {
-  const rawState = (l.state || "").trim();
-  const normalized = normalizeNortheastState(rawState);
-  return {
-    locationName: l.locationName.trim(),
-    city: (l.city || l.locationName).trim(),
-    state: normalized ?? rawState,
-    category: l.category?.trim() || "Other",
-    description: (l.description || "").trim(),
-    confidence: typeof l.confidence === "number" ? Math.max(0, Math.min(1, l.confidence)) : 0.5,
-    inCoverage: normalized !== null,
-    sourceType,
-  };
-}
+/**
+ * Rules shared by every extraction prompt below — this is the boundary that
+ * keeps extraction honest and separate from itinerary generation:
+ * candidates, not a curated tourism list.
+ */
+const EXTRACTION_GUARDRAILS = `Important — this is extraction, not itinerary generation:
+- Extract only locations actually supported by the supplied content.
+- Do not invent nearby attractions that weren't shown or mentioned.
+- Do not expand one location into a generic "things to do nearby" list.
+- Do not assume a state when uncertain — leave it empty instead of guessing.
+- Preserve uncertainty honestly via the confidence field rather than rounding up.`;
 
 type ExtractionContent = string | OpenAI.Chat.Completions.ChatCompletionContentPart[];
 
-async function runExtraction(
-  content: ExtractionContent,
-  sourceType: InspirationSourceType
-): Promise<ExtractedLocation[]> {
+interface RawExtraction {
+  locations: RawExtractedCandidate[];
+}
+
+/** Calls OpenAI and returns raw, unvalidated candidates — no Northeast validation, no ids, no dedup. */
+async function runExtraction(content: ExtractionContent): Promise<RawExtractedCandidate[]> {
   let raw: string;
   try {
     const response = await getClient().chat.completions.create({
@@ -126,10 +125,7 @@ async function runExtraction(
   }
 
   if (!Array.isArray(parsed.locations)) return [];
-
-  return parsed.locations
-    .filter((l) => l.locationName && l.locationName.trim())
-    .map((l) => normalizeRaw(l, sourceType));
+  return parsed.locations.filter((l) => l.locationName && l.locationName.trim());
 }
 
 /**
@@ -142,7 +138,7 @@ async function runExtraction(
 export async function extractLocationsFromText(input: {
   text: string;
   sourceType: InspirationSourceType;
-}): Promise<ExtractedLocation[]> {
+}): Promise<InspirationLocation[]> {
   const { text, sourceType } = input;
   if (!text || text.trim().length < 3) return [];
 
@@ -163,9 +159,11 @@ Rules:
 - description: one short factual sentence about the place — this is shown to the user as the reason it was identified. No marketing language, no adjectives like "stunning" or "breathtaking".
 - confidence: 0 to 1 — how confident you are this is a real, correctly identified place.
 - If no real locations are mentioned, return an empty locations array.
-- Do not invent locations that aren't supported by the text.`;
 
-  return runExtraction(prompt, sourceType);
+${EXTRACTION_GUARDRAILS}`;
+
+  const raw = await runExtraction(prompt);
+  return dedupeLocations(normalizeLocations(raw, { sourceType }));
 }
 
 /**
@@ -178,7 +176,7 @@ Rules:
  */
 export async function extractLocationsFromImage(input: {
   dataUrl: string;
-}): Promise<ExtractedLocation[]> {
+}): Promise<InspirationLocation[]> {
   const { dataUrl } = input;
 
   const instructions = `You are a travel-location extraction engine for Rhinotrek, a Northeast India trip planner.
@@ -192,43 +190,43 @@ Rules:
 - category: one of ${INSPIRATION_CATEGORIES.map((c) => `"${c}"`).join(", ")}.
 - description: one short factual sentence about the place — this is shown to the user as the reason it was identified. No marketing language, no adjectives like "stunning" or "breathtaking".
 - confidence: 0 to 1 — how confident you are this is a real, correctly identified place.
-- If the image contains no identifiable travel locations (e.g. a selfie, an unrelated screenshot, illegible text), return an empty locations array — do not invent places to fill it.
-- Do not invent locations that aren't visibly supported by the image.`;
+- If the image contains no identifiable travel locations (e.g. a selfie, an unrelated screenshot, illegible text), return an empty locations array.
+
+${EXTRACTION_GUARDRAILS}`;
 
   const content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
     { type: "text", text: instructions },
     { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
   ];
 
-  return runExtraction(content, "screenshot");
+  const raw = await runExtraction(content);
+  return dedupeLocations(normalizeLocations(raw, { sourceType: "screenshot" }));
 }
 
 /**
- * Normalizes a single free-text, user-typed place name (the "Can't find your
- * place? Add it manually" path) through the exact same AI extraction used for
- * Instagram captions — same model, same schema, same Northeast-state
- * normalization — so manually-entered and AI-detected locations end up in an
- * identical shape.
+ * Runs a single free-text, user-typed place name (the "Add Place Manually"
+ * path) through the exact same AI extraction + normalization used for every
+ * other source — same model, same schema, same Northeast validation — so a
+ * manually-entered location ends up in an identical InspirationLocation
+ * shape to an AI-detected one.
  *
- * Unlike Instagram extraction, a manual entry is trusted user input, not an
- * AI inference from ambiguous media: if the model can't enrich it (unknown
- * place, unclear state), we still return a best-effort location built from
- * the raw text rather than dropping it, so the user is never blocked from
- * saving what they typed.
+ * Unlike screenshot/notes extraction, a manual entry is trusted user input,
+ * not an AI inference from ambiguous media: if the model can't enrich it
+ * (unknown place, unclear state), we still return a best-effort location
+ * built from the raw text rather than dropping it, so the user is never
+ * blocked from saving what they typed.
  */
-export async function normalizeManualLocation(name: string): Promise<ExtractedLocation> {
+export async function extractManualLocation(name: string): Promise<InspirationLocation> {
   const clean = name.trim().slice(0, 200);
-  const fallback: ExtractedLocation = {
+  const fallbackRaw: RawExtractedCandidate = {
     locationName: clean,
     city: clean,
     state: "",
     category: "Other",
     description: "",
     confidence: 0,
-    inCoverage: false,
-    sourceType: "manual",
   };
-  if (!clean) return fallback;
+  if (!clean) return toInspirationLocation(fallbackRaw, { sourceType: "manual" });
 
   const prompt = `You are a travel-location normalization engine for Rhinotrek, a Northeast India trip planner.
 
@@ -243,14 +241,16 @@ Rules:
 - category: one of ${INSPIRATION_CATEGORIES.map((c) => `"${c}"`).join(", ")}.
 - description: one short factual sentence about the place. No marketing language.
 - confidence: 0 to 1 — how confident you are this is a real, correctly identified place.
-- Return exactly one location in the array, built from what the user typed, even if you are not fully confident — never return an empty array for this input.`;
+- Return exactly one location in the array, built from what the user typed, even if you are not fully confident — never return an empty array for this input.
+
+${EXTRACTION_GUARDRAILS}`;
 
   try {
-    const results = await runExtraction(prompt, "manual");
-    return results[0] ?? fallback;
+    const raw = await runExtraction(prompt);
+    return toInspirationLocation(raw[0] ?? fallbackRaw, { sourceType: "manual" });
   } catch {
     // Never let a manual add hard-fail on an AI hiccup — fall back to the
     // raw text so the user can still save it and try enrichment later.
-    return fallback;
+    return toInspirationLocation(fallbackRaw, { sourceType: "manual" });
   }
 }

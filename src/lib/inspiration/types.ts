@@ -56,7 +56,7 @@ export const INSPIRATION_CATEGORIES = [
 
 export type InspirationCategory = (typeof INSPIRATION_CATEGORIES)[number];
 
-/* ─── Core entities ───────────────────────────────────────────── */
+/* ─── Source provenance ──────────────────────────────────────── */
 
 export type InspirationSourceType = "screenshot" | "notes" | "instagram" | "manual";
 
@@ -68,35 +68,51 @@ export const SOURCE_TYPE_LABELS: Record<InspirationSourceType, string> = {
   manual: "added manually",
 };
 
-/** A location the user has reviewed and saved to their collection. */
-export interface InspirationItem {
+/* ─── Northeast coverage status ──────────────────────────────── */
+
+export type InspirationLocationStatus = "confirmed" | "needs_confirmation" | "outside_coverage";
+
+/* ─── The one shared location model ──────────────────────────── */
+
+/**
+ * The single shape every inspiration source converges on — a screenshot, a
+ * pasted caption, an Instagram reference, a manually typed name, or (later)
+ * any future source adapter. Extraction produces these as review candidates;
+ * the exact same shape, once the user confirms it, is what gets persisted to
+ * "My Inspiration" and handed to the Planner. Nothing downstream of
+ * extraction needs to know where a location originally came from — only
+ * `sourceType`/`sourceUrl` remember that, for provenance display.
+ */
+export interface InspirationLocation {
   id: string;
-  userId: string | null; // no accounts yet — always null; kept for forward-compatibility.
-  sourceType: InspirationSourceType;
-  sourceUrl: string;
-  title: string;
-  locationName: string;
+  name: string;
   city: string;
-  state: string;
-  category: InspirationCategory | string;
+  state: string; // "" when unknown/uncertain — never guessed
+  country: string; // "India" for V1 — reserved for non-domestic future sources
+  type: InspirationCategory | string;
   description: string;
+  sourceType: InspirationSourceType;
+  sourceUrl: string; // "" when there is no source link (e.g. manual, notes)
+  confidence: number; // 0–1
+  status: InspirationLocationStatus;
   latitude: number | null;
   longitude: number | null;
-  confidence: number; // 0–1
-  selected: boolean;
-  createdAt: string; // ISO timestamp
+  userId: string | null; // no accounts yet — always null; kept for forward-compatibility.
+  createdAt: string; // ISO timestamp — when this location was first surfaced.
 }
 
-/** A location candidate surfaced by AI extraction, before the user reviews/saves it. */
-export interface ExtractedLocation {
+/**
+ * The unvalidated shape returned directly by an OpenAI extraction call —
+ * before Northeast-state validation, id assignment, or dedup. Deliberately
+ * mirrors the extraction JSON schema field-for-field. Never shown to the
+ * user and never persisted — see src/lib/inspiration/normalize.ts for the
+ * step that turns this into an InspirationLocation.
+ */
+export interface RawExtractedCandidate {
   locationName: string;
   city: string;
   state: string;
-  category: InspirationCategory | string;
+  category: string;
   description: string;
-  confidence: number; // 0–1
-  /** false when `state` is a real, recognised state outside the 8 supported Northeast ones. */
-  inCoverage: boolean;
-  /** How this candidate was surfaced — carried through to the saved InspirationItem. */
-  sourceType: InspirationSourceType;
+  confidence: number;
 }

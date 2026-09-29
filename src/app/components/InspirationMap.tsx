@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { resolveCoords } from "../lib/geo";
-import type { InspirationItem } from "@/lib/inspiration/types";
+import type { InspirationLocation } from "@/lib/inspiration/types";
 
 function markerIcon(): L.DivIcon {
   return L.divIcon({
@@ -21,7 +21,7 @@ function markerIcon(): L.DivIcon {
 }
 
 interface Props {
-  items: InspirationItem[];
+  items: InspirationLocation[];
 }
 
 /** Map view for the "My Inspiration" collection. Never invents coordinates —
@@ -33,10 +33,10 @@ export default function InspirationMap({ items }: Props) {
         const coords: [number, number] | null =
           item.latitude !== null && item.longitude !== null
             ? [item.latitude, item.longitude]
-            : resolveCoords(item.locationName) ?? resolveCoords(item.city);
+            : resolveCoords(item.name) ?? resolveCoords(item.city);
         return coords ? { item, coords } : null;
       })
-      .filter((p): p is { item: InspirationItem; coords: [number, number] } => p !== null);
+      .filter((p): p is { item: InspirationLocation; coords: [number, number] } => p !== null);
   }, [items]);
 
   const unresolved = items.length - points.length;
@@ -70,7 +70,7 @@ export default function InspirationMap({ items }: Props) {
         {points.map(({ item, coords }) => (
           <Marker key={item.id} position={coords} icon={markerIcon()}>
             <Tooltip direction="top" offset={[0, -26]} opacity={1}>
-              {item.locationName} · {item.state}
+              {item.name} · {item.state}
             </Tooltip>
           </Marker>
         ))}

@@ -4,7 +4,7 @@ import {
   extractLocationsFromText,
   LocationExtractionError,
 } from "@/lib/extraction/locations";
-import type { ExtractedLocation } from "@/lib/inspiration/types";
+import type { InspirationLocation } from "@/lib/inspiration/types";
 
 /**
  * Powers Import Inspiration's two AI-driven input methods — "Upload Screenshot"
@@ -34,10 +34,10 @@ export interface AnalyzeInspirationResponse {
   status: AnalyzeInspirationStatus;
   message: string;
   nextStep?: string;
-  locations?: ExtractedLocation[];
+  locations?: InspirationLocation[];
 }
 
-function successOrEmpty(locations: ExtractedLocation[], emptyMessage: string, emptyNextStep: string) {
+function successOrEmpty(locations: InspirationLocation[], emptyMessage: string, emptyNextStep: string) {
   if (locations.length === 0) {
     return NextResponse.json<AnalyzeInspirationResponse>({
       status: "no_locations",
